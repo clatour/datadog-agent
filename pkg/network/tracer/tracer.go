@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -405,15 +406,6 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		tm[network.DNSStatsDropped] = ds
 	}
 
-	httpStats := stats["http"].(map[string]interface{})
-	if ds, ok := httpStats["dropped"]; ok {
-		tm[network.HTTPRequestsDropped] = ds.(int64)
-	}
-
-	if ms, ok := httpStats["misses"]; ok {
-		tm[network.HTTPRequestsMissed] = ms.(int64)
-	}
-
 	ebpfStats := stats["ebpf"].(map[string]int64)
 	if usp, ok := ebpfStats["udp_sends_processed"]; ok {
 		tm[network.MonotonicUDPSendsProcessed] = usp
@@ -599,7 +591,6 @@ var allStats = []statsComp{
 	dnsStats,
 	epbfStats,
 	gatewayLookupStats,
-	httpStats,
 	kprobesStats,
 	stateStats,
 	tracerStats,
@@ -625,8 +616,6 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			ret["ebpf"] = t.ebpfTracer.GetTelemetry()
 		case gatewayLookupStats:
 			ret["gateway_lookup"] = t.gwLookup.GetStats()
-		case httpStats:
-			ret["http"] = t.httpMonitor.GetStats()
 		case kprobesStats:
 			ret["kprobes"] = ddebpf.GetProbeStats()
 		case stateStats:
@@ -636,6 +625,11 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
 		}
+	}
+
+	// merge with components already migrated to `network/telemetry`
+	for k, v := range telemetry.ReportExpvar() {
+		ret[k] = v
 	}
 
 	return ret, nil
