@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -121,7 +122,7 @@ type Connections struct {
 	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
-	HTTP                        map[http.Key]*http.RequestStats
+	HTTP                        map[transaction.Key]*http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
 }
 
@@ -381,7 +382,7 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 }
 
 // HTTPKeyTuplesFromConn builds possible keys for the http map based on the given conn
-func HTTPKeyTuplesFromConn(c ConnectionStats) [2]http.KeyTuple {
+func HTTPKeyTuplesFromConn(c ConnectionStats) [2]transaction.KeyTuple {
 	// Retrieve translated addresses
 	laddr, lport := GetNATLocalAddress(c)
 	raddr, rport := GetNATRemoteAddress(c)
@@ -389,9 +390,9 @@ func HTTPKeyTuplesFromConn(c ConnectionStats) [2]http.KeyTuple {
 	// HTTP data is always indexed as (client, server), but we don't know which is the remote
 	// and which is the local address. To account for this, we'll construct 2 possible
 	// http keys and check for both of them in our http aggregations map.
-	return [2]http.KeyTuple{
-		http.NewKeyTuple(laddr, raddr, lport, rport),
-		http.NewKeyTuple(raddr, laddr, rport, lport),
+	return [2]transaction.KeyTuple{
+		transaction.NewKeyTuple(laddr, raddr, lport, rport),
+		transaction.NewKeyTuple(raddr, laddr, rport, lport),
 	}
 }
 

@@ -82,7 +82,7 @@ func (m *EtwMonitor) process(transactionBatch []transaction.WinHttpTransaction, 
 	m.statkeeper.Process(transactions)
 }
 
-func (m *EtwMonitor) removeDuplicates(stats map[Key]*RequestStats) {
+func (m *EtwMonitor) removeDuplicates(stats map[transaction.Key]*RequestStats) {
 	// With localhost traffic, the driver will create a flow for both endpoints. Both
 	// these flows will be normalized so that source=client and dest=server, which
 	// results in 2 identical http transactions being sent up to userspace & processed.
@@ -97,7 +97,7 @@ func (m *EtwMonitor) removeDuplicates(stats map[Key]*RequestStats) {
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (m *EtwMonitor) GetHTTPStats() map[Key]*RequestStats {
+func (m *EtwMonitor) GetHTTPStats() map[transaction.Key]*RequestStats {
 
 	transactions := m.hei.getHttpFlows()
 	if transactions == nil {

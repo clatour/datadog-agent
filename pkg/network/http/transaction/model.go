@@ -53,19 +53,12 @@ func (m Method) String() string {
 }
 
 type HttpTX interface {
-	ReqFragment() []byte
+	ReqFragment() []byte //
 	StatusClass() int
-	RequestLatency() float64
-	isIPV4() bool
-	SrcIPLow() uint64
-	SrcIPHigh() uint64
-	SrcPort() uint16
-	DstIPLow() uint64
-	DstIPHigh() uint64
-	DstPort() uint16
-	Method() Method
-	StatusCode() uint16
-	SetStatusCode(uint16)
+	RequestLatency() float64 //definitely used
+	//Method() Method
+	StatusCode() uint16      // incomplete_linux
+	SetStatusCode(uint16)    // incomplete_linux
 	StaticTags() uint64
 	DynamicTags() []string
 	String() string
@@ -75,7 +68,9 @@ type HttpTX interface {
 	SetResponseLastSeen(ls uint64)
 	RequestStarted() uint64
 	SetRequestMethod(uint32)
-	RequestMethod() uint32
+	RequestMethod() uint32 // used in statkeeper
+	NewKey(path string, fullPath bool) Key
+	NewKeyTuple() KeyTuple
 }
 
 // strlen returns the length of a null-terminated string

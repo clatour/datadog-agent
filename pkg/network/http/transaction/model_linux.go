@@ -96,30 +96,6 @@ func (tx *EbpfHttpTx) isIPV4() bool {
 	return true
 }
 
-func (tx *EbpfHttpTx) SrcIPHigh() uint64 {
-	return uint64(tx.Tup.Saddr_h)
-}
-
-func (tx *EbpfHttpTx) SrcIPLow() uint64 {
-	return uint64(tx.Tup.Saddr_l)
-}
-
-func (tx *EbpfHttpTx) SrcPort() uint16 {
-	return uint16(tx.Tup.Sport)
-}
-
-func (tx *EbpfHttpTx) DstIPHigh() uint64 {
-	return uint64(tx.Tup.Daddr_h)
-}
-
-func (tx *EbpfHttpTx) DstIPLow() uint64 {
-	return uint64(tx.Tup.Daddr_l)
-}
-
-func (tx *EbpfHttpTx) DstPort() uint16 {
-	return uint16(tx.Tup.Dport)
-}
-
 func (tx *EbpfHttpTx) Method() Method {
 	return Method(tx.Request_method)
 }
@@ -172,7 +148,6 @@ func (tx *EbpfHttpTx) String() string {
 	return output.String()
 }
 
-
 // below is copied from pkg/trace/stats/statsraw.go
 // 10 bits precision (any value will be +/- 1/1024)
 const roundMask uint64 = 1 << 10
@@ -193,4 +168,22 @@ func RequestFragment(fragment []byte) [ebpf.HTTPBufferSize]int8 {
 		b[i] = int8(fragment[i])
 	}
 	return b
+}
+
+func (tx *EbpfHttpTx) NewKey(path string, fullPath bool) Key {
+	return Key{
+		KeyTuple: KeyTuple{
+			SrcIPHigh: uint64(tx.Tup.Saddr_h),
+			SrcIPLow:  uint64(tx.Tup.Saddr_l),
+			SrcPort:   uint16(tx.Tup.Sport),
+			DstIPHigh: uint64(tx.Tup.Daddr_h),
+			DstIPLow:  uint64(tx.Tup.Daddr_l),
+			DstPort:   uint64(tx.Tup.Dport),
+		},
+		Path: Path{
+			Content:  path,
+			FullPath: fullPath,
+		},
+		Method: tx.Method(),
+	}
 }

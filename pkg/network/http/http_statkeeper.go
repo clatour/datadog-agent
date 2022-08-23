@@ -19,7 +19,7 @@ import (
 )
 
 type httpStatKeeper struct {
-	stats      map[Key]*RequestStats
+	stats      map[transaction.Key]*RequestStats
 	incomplete *incompleteBuffer
 	maxEntries int
 	telemetry  *telemetry
@@ -39,7 +39,7 @@ type httpStatKeeper struct {
 
 func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 	return &httpStatKeeper{
-		stats:             make(map[Key]*RequestStats),
+		stats:             make(map[transaction.Key]*RequestStats),
 		incomplete:        newIncompleteBuffer(c, telemetry),
 		maxEntries:        c.MaxHTTPStatsBuffered,
 		replaceRules:      c.HTTPReplaceRules,
@@ -68,13 +68,13 @@ func (h *httpStatKeeper) ProcessCompleted() {
 	h.telemetry.aggregations.Store(int64(len(h.stats)))
 }
 
-func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
+func (h *httpStatKeeper) GetAndResetAllStats() map[transaction.Key]*RequestStats {
 	for _, tx := range h.incomplete.Flush(time.Now()) {
 		h.add(tx)
 	}
 
 	ret := h.stats // No deep copy needed since `h.stats` gets reset
-	h.stats = make(map[Key]*RequestStats)
+	h.stats = make(map[transaction.Key]*RequestStats)
 	h.interned = make(map[string]string)
 	return ret
 }
@@ -109,7 +109,7 @@ func (h *httpStatKeeper) add(tx transaction.HttpTX) {
 		return
 	}
 
-	key := h.newKey(tx, path, fullPath)
+	key := tx.NewKey(path, fullPath)
 	stats, ok := h.stats[key]
 	if !ok {
 		if len(h.stats) >= h.maxEntries {
@@ -123,23 +123,6 @@ func (h *httpStatKeeper) add(tx transaction.HttpTX) {
 	stats.AddRequest(tx.StatusClass(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *httpStatKeeper) newKey(tx transaction.HttpTX, path string, fullPath bool) Key {
-	return Key{
-		KeyTuple: KeyTuple{
-			SrcIPHigh: tx.SrcIPHigh(),
-			SrcIPLow:  tx.SrcIPLow(),
-			SrcPort:   tx.SrcPort(),
-			DstIPHigh: tx.DstIPHigh(),
-			DstIPLow:  tx.DstIPLow(),
-			DstPort:   tx.DstPort(),
-		},
-		Path: Path{
-			Content:  path,
-			FullPath: fullPath,
-		},
-		Method: tx.Method(),
-	}
-}
 
 func pathIsMalformed(fullPath []byte) bool {
 	for _, r := range fullPath {

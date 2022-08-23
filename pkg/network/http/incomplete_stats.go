@@ -71,11 +71,7 @@ func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuff
 }
 
 func (b *incompleteBuffer) Add(tx transaction.HttpTX) {
-	key := KeyTuple{
-		SrcIPHigh: uint64(tx.SrcIPHigh()),
-		SrcIPLow:  uint64(tx.SrcIPLow()),
-		SrcPort:   uint16(tx.SrcPort()),
-	}
+	key := tx.NewKeyTuple()
 
 	parts, ok := b.data[key]
 	if !ok {

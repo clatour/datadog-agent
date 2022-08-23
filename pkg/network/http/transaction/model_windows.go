@@ -114,30 +114,6 @@ func (tx *WinHttpTransaction) isIPV4() bool {
 	return isIPV4(&tx.Txn.Tup)
 }
 
-func (tx *WinHttpTransaction) SrcIPLow() uint64 {
-	return srcIPLow(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) SrcIPHigh() uint64 {
-	return srcIPHigh(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) SrcPort() uint16 {
-	return tx.Txn.Tup.CliPort
-}
-
-func (tx *WinHttpTransaction) DstIPLow() uint64 {
-	return dstIPLow(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) DstIPHigh() uint64 {
-	return dstIPHigh(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) DstPort() uint16 {
-	return tx.Txn.Tup.SrvPort
-}
-
 func (tx *WinHttpTransaction) Method() Method {
 	return Method(tx.Txn.RequestMethod)
 }
@@ -236,3 +212,28 @@ func nsTimestampToFloat(ns uint64) float64 {
 	return float64(ns << shift)
 }
 
+func (tx *WinHttpTransaction) NewKey(path string, fullPath bool) Key {
+	return Key{
+		KeyTuple: KeyTuple{
+			SrcIPHigh: srcIPHigh(&tx.Txn.Tup),
+			SrcIPLow:  srcIPLow(&tx.Txn.Tup),
+			SrcPort:   tx.Txn.Tup.CliPort,
+			DstIPHigh: dstIPHigh(&tx.Txn.Tup),
+			DstIPLow:  dstIPLow(&tx.Txn.Tup),
+			DstPort:   tx.Txn.Tup.SrvPort,
+		},
+		Path: Path{
+			Content:  path,
+			FullPath: fullPath,
+		},
+		Method: tx.Method(),
+	}
+}
+
+func (tx *WinHttpTransaction) NewKeyTuple() KeyTuple {
+	return KeyTuple{
+		SrcIPHigh: srcIPHigh(&tx.Txn.Tup),
+		SrcIPLow:  srcIPLow(&tx.Txn.Tup),
+		SrcPort:   tx.Txn.Tup.CliPort,
+	}
+}

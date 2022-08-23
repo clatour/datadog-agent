@@ -8,8 +8,6 @@ package http
 import (
 	"github.com/DataDog/sketches-go/ddsketch"
 
-	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -17,59 +15,6 @@ import (
 // For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
 // will be between 99 and 101
 const RelativeAccuracy = 0.01
-
-// Path represents the HTTP path
-type Path struct {
-	Content  string
-	FullPath bool
-}
-
-// KeyTuple represents the network tuple for a group of HTTP transactions
-type KeyTuple struct {
-	SrcIPHigh uint64
-	SrcIPLow  uint64
-
-	DstIPHigh uint64
-	DstIPLow  uint64
-
-	// ports separated for alignment/size optimization
-	SrcPort uint16
-	DstPort uint16
-}
-
-// Key is an identifier for a group of HTTP transactions
-type Key struct {
-	// this field order is intentional to help the GC pointer tracking
-	Path Path
-	KeyTuple
-	Method transaction.Method
-}
-
-// NewKey generates a new Key
-func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, fullPath bool, method transaction.Method) Key {
-	return Key{
-		KeyTuple: NewKeyTuple(saddr, daddr, sport, dport),
-		Path: Path{
-			Content:  path,
-			FullPath: fullPath,
-		},
-		Method: method,
-	}
-}
-
-// NewKeyTuple generates a new KeyTuple
-func NewKeyTuple(saddr, daddr util.Address, sport, dport uint16) KeyTuple {
-	saddrl, saddrh := util.ToLowHigh(saddr)
-	daddrl, daddrh := util.ToLowHigh(daddr)
-	return KeyTuple{
-		SrcIPHigh: saddrh,
-		SrcIPLow:  saddrl,
-		SrcPort:   sport,
-		DstIPHigh: daddrh,
-		DstIPLow:  daddrl,
-		DstPort:   dport,
-	}
-}
 
 // NumStatusClasses represents the number of HTTP status classes (1XX, 2XX, 3XX, 4XX, 5XX)
 const NumStatusClasses = 5

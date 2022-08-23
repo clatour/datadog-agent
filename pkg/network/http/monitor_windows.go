@@ -27,7 +27,7 @@ const (
 // Monitor is the interface to HTTP monitoring
 type Monitor interface {
 	Start()
-	GetHTTPStats() map[Key]*RequestStats
+	GetHTTPStats() map[transaction.Key]*RequestStats
 	GetStats() (map[string]int64, error)
 	Stop() error
 }
@@ -104,7 +104,7 @@ func (m *DriverMonitor) process(transactionBatch []transaction.WinHttpTransactio
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (m *DriverMonitor) GetHTTPStats() map[Key]*RequestStats {
+func (m *DriverMonitor) GetHTTPStats() map[transaction.Key]*RequestStats {
 	// dbtodo  This is now going to cause any pending transactions
 	// to be read and then stuffed into the channel.  Which then I think
 	// creates a race condition that there still could be some mid-
@@ -123,7 +123,7 @@ func (m *DriverMonitor) GetHTTPStats() map[Key]*RequestStats {
 	return stats
 }
 
-func removeDuplicates(stats map[Key]*RequestStats) {
+func removeDuplicates(stats map[transaction.Key]*RequestStats) {
 	// With localhost traffic, the driver will create a flow for both endpoints. Both
 	// these flows will be normalized so that source=client and dest=server, which
 	// results in 2 identical http transactions being sent up to userspace & processed.
@@ -136,7 +136,7 @@ func removeDuplicates(stats map[Key]*RequestStats) {
 	}
 }
 
-func isLocalhost(k Key) bool {
+func isLocalhost(k transaction.Key) bool {
 	var sAddr util.Address
 	if k.SrcIPHigh == 0 {
 		sAddr = util.V4Address(uint32(k.SrcIPLow))
