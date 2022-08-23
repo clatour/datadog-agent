@@ -19,6 +19,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 )
 
 // HTTPMonitorStats is used for holding two kinds of stats:
@@ -35,7 +36,7 @@ type HTTPMonitorStats struct {
 // * Querying these batches by doing a map lookup;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
-	handler func([]httpTX)
+	handler func([]transaction.HttpTX)
 
 	ebpfProgram            *ebpfProgram
 	batchManager           *batchManager
@@ -92,7 +93,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	}
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 
-	handler := func(transactions []httpTX) {
+	handler := func(transactions []transaction.HttpTX) {
 		if statkeeper != nil {
 			statkeeper.Process(transactions)
 		}
@@ -141,7 +142,7 @@ func (m *Monitor) Start() error {
 					return
 				}
 
-				m.process(nil, errLostBatch)
+				m.process(nil, transaction.ErrLostBatch)
 			case reply, ok := <-m.pollRequests:
 				if !ok {
 					return
@@ -226,7 +227,7 @@ func (m *Monitor) Stop() {
 	m.stopped = true
 }
 
-func (m *Monitor) process(transactions []httpTX, err error) {
+func (m *Monitor) process(transactions []transaction.HttpTX, err error) {
 	m.telemetry.aggregate(transactions, err)
 
 	if m.handler != nil && len(transactions) > 0 {

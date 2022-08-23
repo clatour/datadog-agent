@@ -27,7 +27,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key ddebpf.ConnTuple
-		var value httpTX
+		var value ddebpf.EbpfHttpTx
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 )
 
 const defaultMinAge = 30 * time.Second
@@ -49,14 +50,14 @@ type incompleteBuffer struct {
 }
 
 type txParts struct {
-	requests  []httpTX
-	responses []httpTX
+	requests  []transaction.HttpTX
+	responses []transaction.HttpTX
 }
 
 func newTXParts() *txParts {
 	return &txParts{
-		requests:  make([]httpTX, 0, 5),
-		responses: make([]httpTX, 0, 5),
+		requests:  make([]transaction.HttpTX, 0, 5),
+		responses: make([]transaction.HttpTX, 0, 5),
 	}
 }
 
@@ -69,7 +70,7 @@ func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuff
 	}
 }
 
-func (b *incompleteBuffer) Add(tx httpTX) {
+func (b *incompleteBuffer) Add(tx transaction.HttpTX) {
 	key := KeyTuple{
 		SrcIPHigh: uint64(tx.SrcIPHigh()),
 		SrcIPLow:  uint64(tx.SrcIPLow()),
@@ -94,9 +95,9 @@ func (b *incompleteBuffer) Add(tx httpTX) {
 	}
 }
 
-func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
+func (b *incompleteBuffer) Flush(now time.Time) []transaction.HttpTX {
 	var (
-		joined   []httpTX
+		joined   []transaction.HttpTX
 		previous = b.data
 		nowUnix  = now.UnixNano()
 	)
@@ -143,18 +144,18 @@ func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
 	return joined
 }
 
-func (b *incompleteBuffer) shouldKeep(tx httpTX, now int64) bool {
+func (b *incompleteBuffer) shouldKeep(tx transaction.HttpTX, now int64) bool {
 	then := int64(tx.RequestStarted())
 	return (now - then) < b.minAgeNano
 }
 
-type byRequestTime []httpTX
+type byRequestTime []transaction.HttpTX
 
 func (rt byRequestTime) Len() int           { return len(rt) }
 func (rt byRequestTime) Swap(i, j int)      { rt[i], rt[j] = rt[j], rt[i] }
 func (rt byRequestTime) Less(i, j int) bool { return rt[i].RequestStarted() < rt[j].RequestStarted() }
 
-type byResponseTime []httpTX
+type byResponseTime []transaction.HttpTX
 
 func (rt byResponseTime) Len() int      { return len(rt) }
 func (rt byResponseTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }

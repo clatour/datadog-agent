@@ -10,24 +10,40 @@ package transaction
 
 import (
 	"encoding/hex"
+	"errors"
 	"strings"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
 
 /*
-#include "../ebpf/c/http-types.h"
+#include "../../ebpf/c/http-types.h"
 */
 import "C"
 
-type ebpfHttpTx C.http_transaction_t
+type EbpfHttpTx ebpf.EbpfHttpTx
 
+/*
+const (
+	HTTPBatchSize  = int(C.HTTP_BATCH_SIZE)
+	HTTPBatchPages = int(C.HTTP_BATCH_PAGES)
+	HTTPBufferSize = int(C.HTTP_BUFFER_SIZE)
+)
+*/
+type httpNotification C.http_batch_notification_t
+type httpBatch C.http_batch_t
+type httpBatchKey C.http_batch_key_t
+
+// export to match windows definition
+var ErrLostBatch = errors.New("http batch lost (not consumed fast enough)")
 
 // Path returns the URL from the request fragment captured in eBPF with
 // GET variables excluded.
 // Example:
 // For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func (tx *ebpfHttpTx) Path(buffer []byte) ([]byte, bool) {
-	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
+func (tx *EbpfHttpTx) Path(buffer []byte) ([]byte, bool) {
+	b := *(*[ebpf.HTTPBufferSize]byte)(unsafe.Pointer(&tx.Request_fragment))
 
 	// b might contain a null terminator in the middle
 	bLen := strlen(b[:])
@@ -47,127 +63,115 @@ func (tx *ebpfHttpTx) Path(buffer []byte) ([]byte, bool) {
 
 	// no bound check necessary here as we know we at least have '/' character
 	n := copy(buffer, b[i:j])
-	fullPath := j < bLen || (j == HTTPBufferSize-1 && b[j] == ' ')
+	fullPath := j < bLen || (j == ebpf.HTTPBufferSize-1 && b[j] == ' ')
 	return buffer[:n], fullPath
 }
 
 // StatusClass returns an integer representing the status code class
 // Example: a 404 would return 400
-func (tx *ebpfHttpTx) StatusClass() int {
-	return (int(tx.response_status_code) / 100) * 100
+func (tx *EbpfHttpTx) StatusClass() int {
+	return (int(tx.Response_status_code) / 100) * 100
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
-func (tx *ebpfHttpTx) RequestLatency() float64 {
-	if uint64(tx.request_started) == 0 || uint64(tx.response_last_seen) == 0 {
+func (tx *EbpfHttpTx) RequestLatency() float64 {
+	if uint64(tx.Request_started) == 0 || uint64(tx.Response_last_seen) == 0 {
 		return 0
 	}
-	return nsTimestampToFloat(uint64(tx.response_last_seen - tx.request_started))
+	return nsTimestampToFloat(uint64(tx.Response_last_seen - tx.Request_started))
 }
 
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
-func (tx *ebpfHttpTx) Incomplete() bool {
-	return tx.request_started == 0 || tx.response_status_code == 0
+func (tx *EbpfHttpTx) Incomplete() bool {
+	return tx.Request_started == 0 || tx.Response_status_code == 0
 }
 
-func (tx *ebpfHttpTx) ReqFragment() []byte {
-	asslice := (*[1 << 30]byte)(unsafe.Pointer(&tx.request_fragment))[:int(C.HTTP_BUFFER_SIZE):int(C.HTTP_BUFFER_SIZE)]
+func (tx *EbpfHttpTx) ReqFragment() []byte {
+	asslice := (*[1 << 30]byte)(unsafe.Pointer(&tx.Request_fragment))[:int(ebpf.HTTPBufferSize):int(ebpf.HTTPBufferSize)]
 	return asslice
 }
 
-func (tx *ebpfHttpTx) isIPV4() bool {
+func (tx *EbpfHttpTx) isIPV4() bool {
 	return true
 }
 
-func (tx *ebpfHttpTx) SrcIPHigh() uint64 {
-	return uint64(tx.tup.saddr_h)
+func (tx *EbpfHttpTx) SrcIPHigh() uint64 {
+	return uint64(tx.Tup.Saddr_h)
 }
 
-func (tx *ebpfHttpTx) SrcIPLow() uint64 {
-	return uint64(tx.tup.saddr_l)
+func (tx *EbpfHttpTx) SrcIPLow() uint64 {
+	return uint64(tx.Tup.Saddr_l)
 }
 
-func (tx *ebpfHttpTx) SrcPort() uint16 {
-	return uint16(tx.tup.sport)
+func (tx *EbpfHttpTx) SrcPort() uint16 {
+	return uint16(tx.Tup.Sport)
 }
 
-func (tx *ebpfHttpTx) DstIPHigh() uint64 {
-	return uint64(tx.tup.daddr_h)
+func (tx *EbpfHttpTx) DstIPHigh() uint64 {
+	return uint64(tx.Tup.Daddr_h)
 }
 
-func (tx *ebpfHttpTx) DstIPLow() uint64 {
-	return uint64(tx.tup.daddr_l)
+func (tx *EbpfHttpTx) DstIPLow() uint64 {
+	return uint64(tx.Tup.Daddr_l)
 }
 
-func (tx *ebpfHttpTx) DstPort() uint16 {
-	return uint16(tx.tup.dport)
+func (tx *EbpfHttpTx) DstPort() uint16 {
+	return uint16(tx.Tup.Dport)
 }
 
-func (tx *ebpfHttpTx) Method() Method {
-	return Method(tx.request_method)
+func (tx *EbpfHttpTx) Method() Method {
+	return Method(tx.Request_method)
 }
 
-func (tx *ebpfHttpTx) StatusCode() uint16 {
-	return uint16(tx.response_status_code)
+func (tx *EbpfHttpTx) StatusCode() uint16 {
+	return uint16(tx.Response_status_code)
 }
 
-func (tx *ebpfHttpTx) SetStatusCode(code uint16) {
-	tx.response_status_code = C.ushort(code)
+func (tx *EbpfHttpTx) SetStatusCode(code uint16) {
+	tx.Response_status_code = code
 }
 
-func (tx *ebpfHttpTx) ResponseLastSeen() uint64 {
-	return uint64(tx.response_last_seen)
+func (tx *EbpfHttpTx) ResponseLastSeen() uint64 {
+	return uint64(tx.Response_last_seen)
 }
 
-func (tx *ebpfHttpTx) SetResponseLastSeen(lastSeen uint64) {
-	tx.response_last_seen = C.ulonglong(lastSeen)
+func (tx *EbpfHttpTx) SetResponseLastSeen(lastSeen uint64) {
+	tx.Response_last_seen = uint64(lastSeen)
 
 }
-func (tx *ebpfHttpTx) RequestStarted() uint64 {
-	return uint64(tx.request_started)
+func (tx *EbpfHttpTx) RequestStarted() uint64 {
+	return uint64(tx.Request_started)
 }
 
-func (tx *ebpfHttpTx) RequestMethod() uint32 {
-	return uint32(tx.request_method)
+func (tx *EbpfHttpTx) RequestMethod() uint32 {
+	return uint32(tx.Request_method)
 }
 
-func (tx *ebpfHttpTx) SetRequestMethod(m uint32) {
-	tx.request_method = C.uchar(m)
+func (tx *EbpfHttpTx) SetRequestMethod(m uint32) {
+	tx.Request_method = uint8(m)
 }
 
 // Tags returns an uint64 representing the tags bitfields
 // Tags are defined here : pkg/network/ebpf/kprobe_types.go
-func (tx *ebpfHttpTx) StaticTags() uint64 {
-	return uint64(tx.tags)
+func (tx *EbpfHttpTx) StaticTags() uint64 {
+	return uint64(tx.Tags)
 }
 
-func (tx *ebpfHttpTx) DynamicTags() []string {
+func (tx *EbpfHttpTx) DynamicTags() []string {
 	return nil
 }
 
-func (tx *ebpfHttpTx) String() string {
+func (tx *EbpfHttpTx) String() string {
 	var output strings.Builder
-	fragment := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
-	output.WriteString("ebpfHttpTx{")
-	output.WriteString("Method: '" + Method(tx.request_method).String() + "', ")
+	fragment := *(*[ebpf.HTTPBufferSize]byte)(unsafe.Pointer(&tx.Request_fragment))
+	output.WriteString("ebpf.EbpfHttpTx{")
+	output.WriteString("Method: '" + Method(tx.Request_method).String() + "', ")
 	output.WriteString("Fragment: '" + hex.EncodeToString(fragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
 }
 
-// IsDirty detects whether the batch page we're supposed to read from is still
-// valid.  A "dirty" page here means that between the time the
-// http_notification_t message was sent to userspace and the time we performed
-// the batch lookup the page was overridden.
-func (batch *httpBatch) IsDirty(notification httpNotification) bool {
-	return batch.idx != notification.batch_idx
-}
-
-// Transactions returns the slice of HTTP transactions embedded in the batch
-func (batch *httpBatch) Transactions() []ebpfHttpTx {
-	return (*(*[HTTPBatchSize]ebpfHttpTx)(unsafe.Pointer(&batch.txs)))[:]
-}
 
 // below is copied from pkg/trace/stats/statsraw.go
 // 10 bits precision (any value will be +/- 1/1024)
@@ -183,10 +187,10 @@ func nsTimestampToFloat(ns uint64) float64 {
 	return float64(ns << shift)
 }
 
-func requestFragment(fragment []byte) [HTTPBufferSize]C.char {
-	var b [HTTPBufferSize]C.char
+func RequestFragment(fragment []byte) [ebpf.HTTPBufferSize]int8 {
+	var b [ebpf.HTTPBufferSize]int8
 	for i := 0; i < len(b) && i < len(fragment); i++ {
-		b[i] = C.char(fragment[i])
+		b[i] = int8(fragment[i])
 	}
 	return b
 }

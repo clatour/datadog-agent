@@ -77,3 +77,13 @@ type HttpTX interface {
 	SetRequestMethod(uint32)
 	RequestMethod() uint32
 }
+
+// strlen returns the length of a null-terminated string
+func strlen(str []byte) int {
+	for i := 0; i < len(str); i++ {
+		if str[i] == 0 {
+			return i
+		}
+	}
+	return len(str)
+}

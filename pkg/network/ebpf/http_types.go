@@ -18,3 +18,10 @@ type HTTPConnTuple C.conn_tuple_t
 type HTTPBatchState C.http_batch_state_t
 type SSLSock C.ssl_sock_t
 type SSLReadArgs C.ssl_read_args_t
+type EbpfHttpTx C.http_transaction_t
+
+const (
+	HTTPBatchSize  = C.HTTP_BATCH_SIZE
+	HTTPBufferSize = C.HTTP_BUFFER_SIZE
+	HTTPBatchPages = C.HTTP_BATCH_PAGES
+)

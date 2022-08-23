@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -252,7 +253,7 @@ func (e *ebpfProgram) Close() error {
 
 func (e *ebpfProgram) setupMapCleaner() {
 	httpMap, _, _ := e.GetMap(httpInFlightMap)
-	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(ebpfHttpTx))
+	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(transaction.EbpfHttpTx))
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -260,7 +261,7 @@ func (e *ebpfProgram) setupMapCleaner() {
 
 	ttl := maxRequestLinger.Nanoseconds()
 	httpMapCleaner.Clean(5*time.Minute, func(now int64, key, val interface{}) bool {
-		httpTxn, ok := val.(*ebpfHttpTx)
+		httpTxn, ok := val.(*transaction.EbpfHttpTx)
 		if !ok {
 			return false
 		}

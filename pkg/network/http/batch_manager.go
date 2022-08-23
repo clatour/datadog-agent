@@ -9,11 +9,12 @@
 package http
 
 import (
-	"errors"
 	"unsafe"
 
 	"fmt"
 
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/cilium/ebpf"
 )
 
@@ -41,9 +42,6 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 	k.cpu = n.cpu
 	k.page_num = C.uint(int(n.batch_idx) % HTTPBatchPages)
 }
-
-// export to match windows definition
-var ErrLostBatch = errors.New("http batch lost (not consumed fast enough)")
 
 const maxLookupsPerCPU = 2
 
@@ -78,7 +76,7 @@ func newBatchManager(batchMap, batchStateMap *ebpf.Map, numCPUs int) *batchManag
 	}
 }
 
-func (m *batchManager) GetTransactionsFrom(notification httpNotification) ([]httpTX, error) {
+func (m *batchManager) GetTransactionsFrom(notification httpNotification) ([]transaction.HttpTX, error) {
 	var (
 		state    = &m.stateByCPU[notification.cpu]
 		batch    = new(httpBatch)
@@ -98,14 +96,14 @@ func (m *batchManager) GetTransactionsFrom(notification httpNotification) ([]htt
 
 	if batch.IsDirty(notification) {
 		// This means the batch was overridden before we a got chance to read it
-		return nil, errLostBatch
+		return nil, transaction.ErrLostBatch
 	}
 
 	offset := state.pos
 	state.idx = int(notification.batch_idx) + 1
 	state.pos = 0
 
-	txns := make([]httpTX, len(batch.Transactions()[offset:]))
+	txns := make([]transaction.HttpTX, len(batch.Transactions()[offset:]))
 	tocopy := batch.Transactions()[offset:]
 	for idx := range tocopy {
 		txns[idx] = &tocopy[idx]
@@ -113,8 +111,8 @@ func (m *batchManager) GetTransactionsFrom(notification httpNotification) ([]htt
 	return txns, nil
 }
 
-func (m *batchManager) GetPendingTransactions() []httpTX {
-	transactions := make([]httpTX, 0, HTTPBatchSize*HTTPBatchPages/2)
+func (m *batchManager) GetPendingTransactions() []transaction.HttpTX {
+	transactions := make([]transaction.HttpTX, 0, HTTPBatchSize*HTTPBatchPages/2)
 	for i := 0; i < m.numCPUs; i++ {
 		for lookup := 0; lookup < maxLookupsPerCPU; lookup++ {
 			var (
@@ -159,4 +157,17 @@ func (m *batchManager) GetPendingTransactions() []httpTX {
 	}
 
 	return transactions
+}
+
+// IsDirty detects whether the batch page we're supposed to read from is still
+// valid.  A "dirty" page here means that between the time the
+// http_notification_t message was sent to userspace and the time we performed
+// the batch lookup the page was overridden.
+func (batch *httpBatch) IsDirty(notification httpNotification) bool {
+	return batch.idx != notification.batch_idx
+}
+
+// Transactions returns the slice of HTTP transactions embedded in the batch
+func (batch *httpBatch) Transactions() []transaction.EbpfHttpTx {
+	return (*(*[netebpf.HTTPBatchSize]transaction.EbpfHttpTx)(unsafe.Pointer(&batch.txs)))[:]
 }
