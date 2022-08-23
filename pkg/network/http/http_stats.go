@@ -8,58 +8,15 @@ package http
 import (
 	"github.com/DataDog/sketches-go/ddsketch"
 
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// Method is the type used to represent HTTP request methods
-type Method int
 
 // RelativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
 // For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
 // will be between 99 and 101
 const RelativeAccuracy = 0.01
-
-const (
-	// MethodUnknown represents an unknown request method
-	MethodUnknown Method = iota
-	// MethodGet represents the GET request method
-	MethodGet
-	// MethodPost represents the POST request method
-	MethodPost
-	// MethodPut represents the PUT request method
-	MethodPut
-	// MethodDelete represents the DELETE request method
-	MethodDelete
-	// MethodHead represents the HEAD request method
-	MethodHead
-	// MethodOptions represents the OPTIONS request method
-	MethodOptions
-	// MethodPatch represents the PATCH request method
-	MethodPatch
-)
-
-// Method returns a string representing the HTTP method of the request
-func (m Method) String() string {
-	switch m {
-	case MethodGet:
-		return "GET"
-	case MethodPost:
-		return "POST"
-	case MethodPut:
-		return "PUT"
-	case MethodHead:
-		return "HEAD"
-	case MethodDelete:
-		return "DELETE"
-	case MethodOptions:
-		return "OPTIONS"
-	case MethodPatch:
-		return "PATCH"
-	default:
-		return "UNKNOWN"
-	}
-}
 
 // Path represents the HTTP path
 type Path struct {
@@ -85,11 +42,11 @@ type Key struct {
 	// this field order is intentional to help the GC pointer tracking
 	Path Path
 	KeyTuple
-	Method Method
+	Method transaction.Method
 }
 
 // NewKey generates a new Key
-func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, fullPath bool, method Method) Key {
+func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, fullPath bool, method transaction.Method) Key {
 	return Key{
 		KeyTuple: NewKeyTuple(saddr, daddr, sport, dport),
 		Path: Path{

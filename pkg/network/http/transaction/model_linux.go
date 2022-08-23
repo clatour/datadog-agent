@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package transaction
 
 import (
 	"encoding/hex"
@@ -19,26 +19,8 @@ import (
 */
 import "C"
 
-const (
-	HTTPBatchSize  = int(C.HTTP_BATCH_SIZE)
-	HTTPBatchPages = int(C.HTTP_BATCH_PAGES)
-	HTTPBufferSize = int(C.HTTP_BUFFER_SIZE)
-)
-
 type ebpfHttpTx C.http_transaction_t
-type httpNotification C.http_batch_notification_t
-type httpBatch C.http_batch_t
-type httpBatchKey C.http_batch_key_t
 
-func toHTTPNotification(data []byte) httpNotification {
-	return *(*httpNotification)(unsafe.Pointer(&data[0]))
-}
-
-// Prepare the httpBatchKey for a map lookup
-func (k *httpBatchKey) Prepare(n httpNotification) {
-	k.cpu = n.cpu
-	k.page_num = C.uint(int(n.batch_idx) % HTTPBatchPages)
-}
 
 // Path returns the URL from the request fragment captured in eBPF with
 // GET variables excluded.

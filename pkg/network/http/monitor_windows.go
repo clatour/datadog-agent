@@ -13,12 +13,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	defaultMaxTrackedConnections = 65536
+	HTTPBufferSize               = driver.HttpBufferSize
+	HTTPBatchSize                = driver.HttpBatchSize
 )
 
 // Monitor is the interface to HTTP monitoring
@@ -85,8 +88,8 @@ func (m *DriverMonitor) Start() {
 	return
 }
 
-func (m *DriverMonitor) process(transactionBatch []FullHttpTransaction, err error) {
-	transactions := make([]httpTX, len(transactionBatch))
+func (m *DriverMonitor) process(transactionBatch []transaction.WinHttpTransaction, err error) {
+	transactions := make([]transaction.HttpTX, len(transactionBatch))
 	for i := range transactionBatch {
 		transactions[i] = &transactionBatch[i]
 

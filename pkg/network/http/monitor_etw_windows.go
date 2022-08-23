@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	"github.com/DataDog/datadog-agent/pkg/network/etw"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 )
 
 type EtwMonitor struct {
@@ -69,10 +69,10 @@ func (m *EtwMonitor) Start() {
 	}()
 }
 
-func (m *EtwMonitor) process(transactionBatch []etw.Http, err error) {
-	transactions := make([]httpTX, len(transactionBatch))
+func (m *EtwMonitor) process(transactionBatch []transaction.WinHttpTransaction, err error) {
+	transactions := make([]transaction.HttpTX, len(transactionBatch))
 	for i := range transactionBatch {
-		transactions[i] = &etwHttpTX{Http: &transactionBatch[i]}
+		transactions[i] = &transactionBatch[i]
 	}
 
 	m.mux.Lock()

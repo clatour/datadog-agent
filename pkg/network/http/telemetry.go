@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -48,7 +49,7 @@ func newTelemetry() (*telemetry, error) {
 	return t, nil
 }
 
-func (t *telemetry) aggregate(txs []httpTX, err error) {
+func (t *telemetry) aggregate(txs []transaction.HttpTX, err error) {
 	for _, tx := range txs {
 		switch tx.StatusClass() {
 		case 100:
@@ -64,7 +65,7 @@ func (t *telemetry) aggregate(txs []httpTX, err error) {
 		}
 	}
 
-	if err == errLostBatch {
+	if err == transaction.ErrLostBatch {
 		t.misses.Add(int64(HTTPBatchSize))
 	}
 }

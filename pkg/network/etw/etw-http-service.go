@@ -129,13 +129,12 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/shirou/gopsutil/process"
 )
@@ -145,27 +144,6 @@ import (
 #include "etw-provider.h"
 */
 import "C"
-
-type Http struct {
-	// Most of it just like driver's HTTP data ...
-	Txn driver.HttpTransactionType
-	// To keep up with FullHttpTransaction (cannot import http package - will be cyclical import)
-	// Probably need to move to common windows utility package
-	RequestFragment []byte
-
-	// ... plus some extra
-	AppPool string
-
-	// <<<MORE ETW HttpService DETAILS>>>
-	// We can track FULL url and few other attributes. However it will require much memory.
-	// Search for <<<MORE ETW HttpService DETAILS>>> top find all places to be uncommented
-	// if such tracking is desired
-	//
-	// Url           string
-	// SiteID        uint32
-	// HeaderLength  uint32
-	// ContentLength uint32
-}
 
 type Conn struct {
 	tup          driver.ConnTupleType
@@ -184,7 +162,7 @@ type ConnOpen struct {
 type HttpConnLink struct {
 	connActivityId C.DDGUID
 
-	http Http
+	http transaction.WinHttpTransaction
 
 	url string
 }
@@ -201,7 +179,7 @@ type Cache struct {
 
 type HttpCache struct {
 	cache Cache
-	http  Http
+	http  transaction.WinHttpTransaction
 }
 
 const (
@@ -223,7 +201,7 @@ var (
 	httpCache             map[string]*HttpCache
 
 	completedHttpTxMux      sync.Mutex
-	completedHttpTx         []Http
+	completedHttpTx         []transaction.WinHttpTransaction
 	completedHttpTxMaxCount uint64 = 1000 // default max
 	maxRequestFragmentBytes uint64 = 25
 	completedHttpTxDropped  uint   = 0 // when should we reset this telemetry and how to expose it
@@ -642,8 +620,10 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *C.DD_ETW_EVENT_INFO) {
 		// which expects something like "GET /foo?var=bar HTTP/1.1"
 		// in future it probably should be optimize because we have already
 		// whole thing
+		httpConnLink.http.Txn.MaxRequestFragment = uint16(maxRequestFragmentBytes)
 		httpConnLink.http.RequestFragment = make([]byte, maxRequestFragmentBytes)
 		httpConnLink.http.RequestFragment[0] = 32
+
 
 		// copy rest of arguments
 		copy(httpConnLink.http.RequestFragment[1:], urlParsed.Path)
@@ -1202,19 +1182,10 @@ func initializeEtwHttpServiceSubscription() {
 
 	completedHttpTxMux.Lock()
 	defer completedHttpTxMux.Unlock()
-	completedHttpTx = make([]Http, 0, 100)
+	completedHttpTx = make([]transaction.WinHttpTransaction, 0, 100)
 }
 
-func (h *Http) String() string {
-	var output strings.Builder
-	output.WriteString("httpTX{")
-	output.WriteString("Method: '" + strconv.Itoa(int(h.Txn.RequestMethod)) + "', ")
-	//output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
-	output.WriteString("\n  Fragment: '" + string(h.RequestFragment[:]) + "', ")
-	output.WriteString("}")
-	return output.String()
-}
-func ReadHttpTx() (httpTxs []Http, err error) {
+func ReadHttpTx() (httpTxs []transaction.WinHttpTransaction, err error) {
 	if !httpServiceSubscribed {
 		return nil, errors.New("ETW HttpService is not currently subscribed")
 	}
@@ -1225,7 +1196,7 @@ func ReadHttpTx() (httpTxs []Http, err error) {
 	// Return accumulated httpTx and reset array
 	readHttpTx := completedHttpTx
 
-	completedHttpTx = make([]Http, 0, 100)
+	completedHttpTx = make([]transaction.WinHttpTransaction, 0, 100)
 
 	return readHttpTx, nil
 }

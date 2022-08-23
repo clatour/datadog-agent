@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -49,7 +50,7 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 	}
 }
 
-func (h *httpStatKeeper) Process(transactions []httpTX) {
+func (h *httpStatKeeper) Process(transactions []transaction.HttpTX) {
 	for i := range transactions {
 		tx := transactions[i]
 		if tx.Incomplete() {
@@ -78,7 +79,7 @@ func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
-func (h *httpStatKeeper) add(tx httpTX) {
+func (h *httpStatKeeper) add(tx transaction.HttpTX) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
 		h.telemetry.malformed.Inc()
@@ -90,7 +91,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 		return
 	}
 
-	if Method(tx.RequestMethod()) == MethodUnknown {
+	if transaction.Method(tx.RequestMethod()) == transaction.MethodUnknown {
 		h.telemetry.malformed.Inc()
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
@@ -122,7 +123,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 	stats.AddRequest(tx.StatusClass(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *httpStatKeeper) newKey(tx httpTX, path string, fullPath bool) Key {
+func (h *httpStatKeeper) newKey(tx transaction.HttpTX, path string, fullPath bool) Key {
 	return Key{
 		KeyTuple: KeyTuple{
 			SrcIPHigh: tx.SrcIPHigh(),
@@ -149,7 +150,7 @@ func pathIsMalformed(fullPath []byte) bool {
 	return false
 }
 
-func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string, rejected bool) {
+func (h *httpStatKeeper) processHTTPPath(tx transaction.HttpTX, path []byte) (pathStr string, rejected bool) {
 	match := false
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
@@ -185,40 +186,4 @@ func (h *httpStatKeeper) intern(b []byte) string {
 		h.interned[v] = v
 	}
 	return v
-}
-
-// getPath returns the URL from a request fragment with GET variables excluded.
-// Example:
-// For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func getPath(reqFragment, buffer []byte) ([]byte, bool) {
-	// reqFragment might contain a null terminator in the middle
-	reqLen := strlen(reqFragment[:])
-
-	var i, j int
-	for i = 0; i < reqLen && reqFragment[i] != ' '; i++ {
-	}
-
-	i++
-
-	if i >= reqLen || (reqFragment[i] != '/' && reqFragment[i] != '*') {
-		return nil, false
-	}
-
-	for j = i; j < reqLen && reqFragment[j] != ' ' && reqFragment[j] != '?'; j++ {
-	}
-
-	// no bound check necessary here as we know we at least have '/' character
-	n := copy(buffer, reqFragment[i:j])
-	fullPath := j < reqLen || (j == HTTPBufferSize-1 && reqFragment[j] == ' ')
-	return buffer[:n], fullPath
-}
-
-// strlen returns the length of a null-terminated string
-func strlen(str []byte) int {
-	for i := 0; i < len(str); i++ {
-		if str[i] == 0 {
-			return i
-		}
-	}
-	return len(str)
 }
