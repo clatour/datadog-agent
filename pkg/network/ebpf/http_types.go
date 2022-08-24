@@ -20,6 +20,11 @@ type SSLSock C.ssl_sock_t
 type SSLReadArgs C.ssl_read_args_t
 type EbpfHttpTx C.http_transaction_t
 
+type HttpNotification C.http_batch_notification_t
+type HttpBatch C.http_batch_t
+type HttpBatchKey C.http_batch_key_t
+
+
 const (
 	HTTPBatchSize  = C.HTTP_BATCH_SIZE
 	HTTPBufferSize = C.HTTP_BUFFER_SIZE

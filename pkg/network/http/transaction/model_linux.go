@@ -17,23 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
 
-/*
-#include "../../ebpf/c/http-types.h"
-*/
-import "C"
-
 type EbpfHttpTx ebpf.EbpfHttpTx
-
-/*
-const (
-	HTTPBatchSize  = int(C.HTTP_BATCH_SIZE)
-	HTTPBatchPages = int(C.HTTP_BATCH_PAGES)
-	HTTPBufferSize = int(C.HTTP_BUFFER_SIZE)
-)
-*/
-type httpNotification C.http_batch_notification_t
-type httpBatch C.http_batch_t
-type httpBatchKey C.http_batch_key_t
+type httpNotification ebpf.HttpNotification
+type httpBatch ebpf.HttpBatch
+type httpBatchKey ebpf.HttpBatchKey
 
 // export to match windows definition
 var ErrLostBatch = errors.New("http batch lost (not consumed fast enough)")
@@ -178,12 +165,19 @@ func (tx *EbpfHttpTx) NewKey(path string, fullPath bool) Key {
 			SrcPort:   uint16(tx.Tup.Sport),
 			DstIPHigh: uint64(tx.Tup.Daddr_h),
 			DstIPLow:  uint64(tx.Tup.Daddr_l),
-			DstPort:   uint64(tx.Tup.Dport),
+			DstPort:   uint16(tx.Tup.Dport),
 		},
 		Path: Path{
 			Content:  path,
 			FullPath: fullPath,
 		},
 		Method: tx.Method(),
+	}
+}
+func (tx *EbpfHttpTx) NewKeyTuple() KeyTuple {
+	return KeyTuple{
+		SrcIPHigh: uint64(tx.Tup.Saddr_h),
+		SrcIPLow:  uint64(tx.Tup.Saddr_l),
+		SrcPort:   uint16(tx.Tup.Sport),
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,7 +44,7 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 		incomplete:        newIncompleteBuffer(c, telemetry),
 		maxEntries:        c.MaxHTTPStatsBuffered,
 		replaceRules:      c.HTTPReplaceRules,
-		buffer:            make([]byte, HTTPBufferSize),
+		buffer:            make([]byte, netebpf.HTTPBufferSize),
 		interned:          make(map[string]string),
 		telemetry:         telemetry,
 		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
@@ -122,7 +123,6 @@ func (h *httpStatKeeper) add(tx transaction.HttpTX) {
 
 	stats.AddRequest(tx.StatusClass(), latency, tx.StaticTags(), tx.DynamicTags())
 }
-
 
 func pathIsMalformed(fullPath []byte) bool {
 	for _, r := range fullPath {

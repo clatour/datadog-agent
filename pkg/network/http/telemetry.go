@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -66,7 +67,7 @@ func (t *telemetry) aggregate(txs []transaction.HttpTX, err error) {
 	}
 
 	if err == transaction.ErrLostBatch {
-		t.misses.Add(int64(HTTPBatchSize))
+		t.misses.Add(int64(netebpf.HTTPBatchSize))
 	}
 }
 

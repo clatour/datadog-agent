@@ -41,6 +41,20 @@ type EbpfHttpTx struct {
 	Tags                 uint64
 }
 
+type HttpNotification struct {
+	Cpu uint32
+	Idx uint64
+}
+type HttpBatch struct {
+	Idx uint64
+	Pos uint8
+	Txs [15]EbpfHttpTx
+}
+type HttpBatchKey struct {
+	Cpu uint32
+	Num uint32
+}
+
 const (
 	HTTPBatchSize  = 0xf
 	HTTPBufferSize = 0xa0
