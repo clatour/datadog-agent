@@ -13,32 +13,33 @@ import (
 	"strings"
 	"testing"
 
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestPath(t *testing.T) {
-	tx := ebpfHttpTx{
-		request_fragment: requestFragment(
+	tx := EbpfHttpTx{
+		Request_fragment: RequestFragment(
 			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
 		),
 	}
 
-	b := make([]byte, HTTPBufferSize)
+	b := make([]byte, netebpf.HTTPBufferSize)
 	path, fullPath := tx.Path(b)
 	assert.Equal(t, "/foo/bar", string(path))
 	assert.True(t, fullPath)
 }
 
 func TestMaximumLengthPath(t *testing.T) {
-	rep := strings.Repeat("a", HTTPBufferSize-6)
+	rep := strings.Repeat("a", netebpf.HTTPBufferSize-6)
 	str := "GET /" + rep
 	str += "bc"
-	tx := ebpfHttpTx{
-		request_fragment: requestFragment(
+	tx := EbpfHttpTx{
+		Request_fragment: RequestFragment(
 			[]byte(str),
 		),
 	}
-	b := make([]byte, HTTPBufferSize)
+	b := make([]byte, netebpf.HTTPBufferSize)
 	path, fullPath := tx.Path(b)
 	expected := "/" + rep
 	expected = expected + "b"
@@ -47,8 +48,8 @@ func TestMaximumLengthPath(t *testing.T) {
 }
 
 func TestPathHandlesNullTerminator(t *testing.T) {
-	tx := ebpfHttpTx{
-		request_fragment: requestFragment(
+	tx := EbpfHttpTx{
+		Request_fragment: RequestFragment(
 			// This probably isn't a valid HTTP request
 			// (since it's missing a version before the end),
 			// but if the null byte isn't handled
@@ -57,31 +58,31 @@ func TestPathHandlesNullTerminator(t *testing.T) {
 		),
 	}
 
-	b := make([]byte, HTTPBufferSize)
+	b := make([]byte, netebpf.HTTPBufferSize)
 	path, fullPath := tx.Path(b)
 	assert.Equal(t, "/foo/", string(path))
 	assert.False(t, fullPath)
 }
 
 func TestLatency(t *testing.T) {
-	tx := ebpfHttpTx{
-		response_last_seen: 2e6,
-		request_started:    1e6,
+	tx := EbpfHttpTx{
+		Response_last_seen: 2e6,
+		Request_started:    1e6,
 	}
 	// quantization brings it down
 	assert.Equal(t, 999424.0, tx.RequestLatency())
 }
 
 func BenchmarkPath(b *testing.B) {
-	tx := ebpfHttpTx{
-		request_fragment: requestFragment(
+	tx := EbpfHttpTx{
+		Request_fragment: RequestFragment(
 			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
 		),
 	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	buf := make([]byte, HTTPBufferSize)
+	buf := make([]byte, netebpf.HTTPBufferSize)
 	for i := 0; i < b.N; i++ {
 		_, _ = tx.Path(buf)
 	}

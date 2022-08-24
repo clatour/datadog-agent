@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -105,7 +106,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 	stats := monitor.GetHTTPStats()
 
 	for key := range stats {
-		if key.Method == MethodUnknown {
+		if key.Method == transaction.MethodUnknown {
 			t.Error("detected HTTP request with method unknown")
 		}
 	}
@@ -212,7 +213,7 @@ func requestGenerator(t *testing.T, targetAddr string) func() *nethttp.Request {
 	}
 }
 
-func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
+func includesRequest(t *testing.T, allStats map[transaction.Key]*RequestStats, req *nethttp.Request) {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	for key, stats := range allStats {
 		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {

@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -26,7 +27,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	tel, err := newTelemetry()
 	require.NoError(t, err)
 	sk := newHTTPStatkeeper(cfg, tel)
-	txs := make([]httpTX, 100)
+	txs := make([]transaction.HttpTX, 100)
 
 	sourceIP := util.AddressFromString("1.1.1.1")
 	sourcePort := 1234
@@ -82,7 +83,7 @@ func BenchmarkProcessSameConn(b *testing.B) {
 		404,
 		30*time.Millisecond,
 	)
-	transactions := []httpTX{tx}
+	transactions := []transaction.HttpTX{tx}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -120,7 +121,7 @@ func TestPathProcessing(t *testing.T) {
 		}
 
 		sk := setupStatKeeper(rules)
-		transactions := []httpTX{
+		transactions := []transaction.HttpTX{
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/foobar", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/payment/123", statusCode, latency),
 		}
@@ -142,7 +143,7 @@ func TestPathProcessing(t *testing.T) {
 		}
 
 		sk := setupStatKeeper(rules)
-		transactions := []httpTX{
+		transactions := []transaction.HttpTX{
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/1", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/2", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/3", statusCode, latency),
@@ -172,7 +173,7 @@ func TestPathProcessing(t *testing.T) {
 		}
 
 		sk := setupStatKeeper(rules)
-		transactions := []httpTX{
+		transactions := []transaction.HttpTX{
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/ana/payment/123", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/bob/payment/456", statusCode, latency),
 		}
@@ -204,7 +205,7 @@ func TestHTTPCorrectness(t *testing.T) {
 			404,
 			30*time.Millisecond,
 		)
-		transactions := []httpTX{tx}
+		transactions := []transaction.HttpTX{tx}
 
 		sk.Process(transactions)
 		require.Equal(t, int64(1), tel.malformed.Load())
@@ -228,7 +229,7 @@ func TestHTTPCorrectness(t *testing.T) {
 			30*time.Millisecond,
 		)
 		tx.SetRequestMethod(0) /* This is MethodUnknown */
-		transactions := []httpTX{tx}
+		transactions := []transaction.HttpTX{tx}
 
 		sk.Process(transactions)
 		require.Equal(t, int64(1), tel.malformed.Load())
@@ -251,7 +252,7 @@ func TestHTTPCorrectness(t *testing.T) {
 			404,
 			0,
 		)
-		transactions := []httpTX{tx}
+		transactions := []transaction.HttpTX{tx}
 
 		sk.Process(transactions)
 		require.Equal(t, int64(1), tel.malformed.Load())

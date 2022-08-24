@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -209,15 +210,15 @@ func TestSerialization(t *testing.T) {
 				},
 			},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			http.NewKey(
+		HTTP: map[transaction.Key]*http.RequestStats{
+			transaction.NewKey(
 				util.AddressFromString("20.1.1.1"),
 				util.AddressFromString("20.1.1.1"),
 				40,
 				80,
 				"/testpath",
 				true,
-				http.MethodGet,
+				transaction.MethodGet,
 			): &httpReqStats,
 		},
 	}
@@ -455,15 +456,15 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				},
 			},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			http.NewKey(
+		HTTP: map[transaction.Key]*http.RequestStats{
+			transaction.NewKey(
 				localhost,
 				localhost,
 				clientPort,
 				serverPort,
 				"/testpath",
 				true,
-				http.MethodGet,
+				transaction.MethodGet,
 			): &httpReqStats,
 		},
 	}
@@ -523,14 +524,14 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 func TestPooledObjectGarbageRegression(t *testing.T) {
 	// This test ensures that no garbage data is accidentally
 	// left on pooled Connection objects used during serialization
-	httpKey := http.NewKey(
+	httpKey := transaction.NewKey(
 		util.AddressFromString("10.0.15.1"),
 		util.AddressFromString("172.217.10.45"),
 		60000,
 		8080,
 		"",
 		true,
-		http.MethodGet,
+		transaction.MethodGet,
 	)
 
 	in := &network.Connections{
@@ -569,11 +570,11 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	// Let's alternate between payloads with and without HTTP data
 	for i := 0; i < 1000; i++ {
 		if (i % 2) == 0 {
-			httpKey.Path = http.Path{
+			httpKey.Path = transaction.Path{
 				Content:  fmt.Sprintf("/path-%d", i),
 				FullPath: true,
 			}
-			in.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
+			in.HTTP = map[transaction.Key]*http.RequestStats{httpKey: {}}
 			out := encodeAndDecodeHTTP(in)
 
 			require.NotNil(t, out)
