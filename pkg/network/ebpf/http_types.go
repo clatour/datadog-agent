@@ -24,9 +24,12 @@ type HttpNotification C.http_batch_notification_t
 type HttpBatch C.http_batch_t
 type HttpBatchKey C.http_batch_key_t
 
+type LibPath = C.lib_path_t
 
 const (
 	HTTPBatchSize  = C.HTTP_BATCH_SIZE
 	HTTPBufferSize = C.HTTP_BUFFER_SIZE
 	HTTPBatchPages = C.HTTP_BATCH_PAGES
+
+	PathMaxSize = C.LIB_PATH_MAX_SIZE
 )

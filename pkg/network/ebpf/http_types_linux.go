@@ -55,8 +55,16 @@ type HttpBatchKey struct {
 	Num uint32
 }
 
+type LibPath = struct {
+	Pid uint32
+	Len uint32
+	Buf [120]int8
+}
+
 const (
 	HTTPBatchSize  = 0xf
 	HTTPBufferSize = 0xa0
 	HTTPBatchPages = 0xf
+
+	PathMaxSize = 0x78
 )
