@@ -94,6 +94,11 @@ const (
 	maxExternalMetricsProviderChunkSize = 35
 )
 
+// GetAllPossibleActivityDumpTracedEvents defines all the possible values for activity dumps traced events
+func GetAllPossibleActivityDumpTracedEvents() []string {
+	return []string{"exec", "open", "dns", "bind", "syscalls"}
+}
+
 // Datadog is the global configuration object
 var (
 	Datadog       Config
