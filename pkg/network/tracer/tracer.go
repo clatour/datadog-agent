@@ -356,6 +356,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	rctm := t.getRuntimeCompilationTelemetry()
+	khfr := int32(kernel.HeaderProvider.GetResult())
 	t.lastCheck.Store(time.Now().Unix())
 
 	return &network.Connections{
@@ -364,6 +365,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		DNSStats:                    delta.DNSStats,
 		HTTP:                        delta.HTTP,
 		ConnTelemetry:               ctm,
+		KernelHeaderFetchResult:     khfr,
 		CompilationTelemetryByAsset: rctm,
 	}, nil
 }
@@ -452,7 +454,6 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 			RuntimeCompilationEnabled:  telemetry.CompilationEnabled(),
 			RuntimeCompilationResult:   telemetry.CompilationResult(),
 			RuntimeCompilationDuration: telemetry.CompilationDurationNS(),
-			KernelHeaderFetchResult:    telemetry.KernelHeaderFetchResult(),
 		}
 		result[assetName] = tm
 	}
