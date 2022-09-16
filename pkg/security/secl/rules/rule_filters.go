@@ -7,7 +7,11 @@ package rules
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/Masterminds/semver"
 )
@@ -72,4 +76,59 @@ func (r *AgentVersionFilter) IsMacroAccepted(macro *MacroDefinition) (bool, erro
 	}
 
 	return constraint.Check(r.version), nil
+}
+
+// SECLRuleFilter defines a SECL rule filter
+type SECLRuleFilter struct {
+	model   eval.Model
+	context *eval.Context
+}
+
+// NewSECLRuleFilter returns a new agent version based rule filter
+func NewSECLRuleFilter(model eval.Model) *SECLRuleFilter {
+	return &SECLRuleFilter{
+		model: model,
+		context: &eval.Context{
+			Object: model.NewEvent().GetPointer(),
+		},
+	}
+}
+
+// IsRuleAccepted checks whether the rule is accepted
+func (r *SECLRuleFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
+	expression := strings.Join(rule.Filters, " && ")
+	astRule, err := ast.ParseRule(expression)
+	if err != nil {
+		return false, err
+	}
+
+	evalOpts := &eval.Opts{}
+	evalOpts.
+		WithConstants(model.SECLConstants)
+
+	evaluator, err := eval.NewRuleEvaluator(astRule, r.model, eval.ReplacementContext{
+		Opts:       evalOpts,
+		MacroStore: &eval.MacroStore{},
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return evaluator.Eval(r.context), nil
+}
+
+// IsMacroAccepted checks whether the macro is accepted
+func (r *SECLRuleFilter) IsMacroAccepted(macro *MacroDefinition) (bool, error) {
+	expression := strings.Join(macro.Filters, " && ")
+	astRule, err := ast.ParseRule(expression)
+	if err != nil {
+		return false, err
+	}
+
+	evaluator, err := eval.NewRuleEvaluator(astRule, r.model, eval.ReplacementContext{})
+	if err != nil {
+		return false, err
+	}
+
+	return evaluator.Eval(r.context), nil
 }
