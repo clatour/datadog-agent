@@ -76,8 +76,8 @@ func newSampler(extraRate float64, targetTPS float64, tags []string) *Sampler {
 	return s
 }
 
-// updateTargetTPS updates the targetTPS and all rates
-func (s *Sampler) updateTargetTPS(targetTPS float64) {
+// UpdateTargetTPS updates the targetTPS and all rates
+func (s *Sampler) UpdateTargetTPS(targetTPS float64) {
 	previousTargetTPS := s.targetTPS.Load()
 	s.targetTPS.Store(targetTPS)
 

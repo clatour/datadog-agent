@@ -805,14 +805,14 @@ func TestSampling(t *testing.T) {
 	}
 	// configureAgent creates a new agent using the provided configuration.
 	configureAgent := func(ac agentConfig) *Agent {
-		cfg := &config.AgentConfig{RareSamplerDisabled: ac.rareSamplerDisabled}
+		cfg := &config.AgentConfig{RareSamplerDisabled: ac.rareSamplerDisabled, RareSamplerCardinality: 200}
 		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerDisabled: ac.rareSamplerDisabled}
 
 		a := &Agent{
 			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
 			ErrorsSampler:     sampler.NewErrorsSampler(cfg),
 			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-			RareSampler:       sampler.NewRareSampler(config.New()),
+			RareSampler:       sampler.NewRareSampler(cfg),
 			conf:              cfg,
 		}
 		if ac.errorsSampled {
@@ -952,7 +952,7 @@ func TestPartialSamplingFree(t *testing.T) {
 		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
 		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
 		EventProcessor:    newEventProcessor(cfg),
-		RareSampler:       sampler.NewRareSampler(config.New()),
+		RareSampler:       sampler.NewRareSampler(cfg),
 		TraceWriter:       &writer.TraceWriter{In: writerChan},
 		conf:              cfg,
 	}

@@ -29,5 +29,19 @@ type TargetTPS struct {
 
 // APMSampling is the list of target tps
 type APMSampling struct {
-	TargetTPS []TargetTPS `msgpack:"0"`
+	TargetTPS              []TargetTPS             `msgpack:"0"`
+	RareSamplerState       RareSamplerState        `msgpack:"1"`
+	ErrorsSamplerTargetTPS *ErrorsSamplerTargetTPS `msgpack:"2"`
 }
+
+type ErrorsSamplerTargetTPS struct {
+	Value float64
+}
+
+type RareSamplerState string
+
+const (
+	RareSamplerStateUnset    = "" // messagepack default
+	RareSamplerStateEnabled  = "ENABLED"
+	RareSamplerStateDisabled = "DISABLED"
+)

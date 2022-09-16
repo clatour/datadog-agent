@@ -120,7 +120,7 @@ func (r *RemoteRates) updateTPS(tpsTargets map[Signature]apmsampling.TargetTPS) 
 			noTPSConfigured[sig] = struct{}{}
 		}
 		sampler.target = target
-		sampler.updateTargetTPS(target.Value)
+		sampler.UpdateTargetTPS(target.Value)
 	}
 	r.mu.RUnlock()
 
