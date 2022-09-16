@@ -376,12 +376,24 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activi
         return 1;
     }
 
-    if (rate_ctx_p->counter >= config->events_rate) {
+    if (rate_ctx_p->counter >= config->events_rate) { // if we already allowed more than rate
         return 0;
-    } else if (should_count) {
-        __sync_fetch_and_add(&rate_ctx_p->counter, 1);
+    } else if (rate_ctx_p->counter < (config->events_rate / 5)) { // first tier is not rate limited
+        if (should_count) {
+            __sync_fetch_and_add(&rate_ctx_p->counter, 1);
+        }
+        return 1;
     }
-    return 1;
+
+    // if we are between rate / 5 and rate, apply a decreasing rate of:
+    // (counter * 100) / (rate) %
+    else if (now % ((rate_ctx_p->counter * 100) / config->events_rate) == 0) {
+        if (should_count) {
+            __sync_fetch_and_add(&rate_ctx_p->counter, 1);
+        }
+        return 1;
+    }
+    return 0;
 }
 
 #define NO_ACTIVITY_DUMP       0
