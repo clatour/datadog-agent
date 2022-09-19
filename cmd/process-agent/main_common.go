@@ -164,7 +164,7 @@ func runAgent(exit chan struct{}) {
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
 	// Start workload metadata store before tagger (used for containerCollection)
-	store := workloadmeta.GetGlobalStore()
+	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 	store.Start(mainCtx)
 
 	// Tagger must be initialized after agent config has been setup

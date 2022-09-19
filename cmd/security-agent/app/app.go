@@ -305,7 +305,7 @@ func RunAgent(ctx context.Context) (err error) {
 	}
 
 	// Start workloadmeta store
-	store := workloadmeta.GetGlobalStore()
+	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 	store.Start(ctx)
 
 	complianceAgent, err := startCompliance(hostnameDetected, stopper, statsdClient)

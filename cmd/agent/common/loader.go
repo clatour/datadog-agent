@@ -24,14 +24,19 @@ import (
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
 func LoadComponents(ctx context.Context, confdPath string) {
-	if flavor.GetFlavor() != flavor.ClusterAgent {
-		store := workloadmeta.GetGlobalStore()
-		store.Start(ctx)
+	var catalog workloadmeta.CollectorCatalog
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		catalog = workloadmeta.ClusterAgentCatalog
+	} else {
+		catalog = workloadmeta.NodeAgentCatalog
+	}
 
-		tagger.SetDefaultTagger(local.NewTagger(store))
-		if err := tagger.Init(ctx); err != nil {
-			log.Errorf("failed to start the tagger: %s", err)
-		}
+	store := workloadmeta.CreateGlobalStore(catalog)
+	store.Start(ctx)
+
+	tagger.SetDefaultTagger(local.NewTagger(store))
+	if err := tagger.Init(ctx); err != nil {
+		log.Errorf("failed to start the tagger: %s", err)
 	}
 
 	// create the Collector instance and start all the components
