@@ -1,0 +1,39 @@
+## ERRORS
+
+=== FAIL: cmd/agent/subcommands/integrations TestInstallCommand (0.00s)
+Error: unknown command "install" for "test"
+Run 'test --help' for usage.
+    test.go:109: 
+        	Error Trace:	C:\dev\go\src\github.com\DataDog\datadog-agent\cmd\agent\subcommands\integrations\test.go:109
+        	Error:      	Should be true
+        	Test:       	TestInstallCommand
+        	Messages:   	fxutil.OneShot wasn't called
+=== FAIL: cmd/agent/subcommands/integrations TestRemoveCommand (0.00s)
+Error: unknown command "remove" for "test"
+Run 'test --help' for usage.
+    test.go:109: 
+        	Error Trace:	C:\dev\go\src\github.com\DataDog\datadog-agent\cmd\agent\subcommands\integrations\test.go:109
+        	Error:      	Should be true
+        	Test:       	TestRemoveCommand
+        	Messages:   	fxutil.OneShot wasn't called
+=== FAIL: cmd/agent/subcommands/integrations TestFreezeCommand (0.00s)
+Error: unknown command "freeze" for "test"
+Run 'test --help' for usage.
+    test.go:109: 
+        	Error Trace:	C:\dev\go\src\github.com\DataDog\datadog-agent\cmd\agent\subcommands\integrations\test.go:109
+        	Error:      	Should be true
+        	Test:       	TestFreezeCommand
+        	Messages:   	fxutil.OneShot wasn't called
+=== FAIL: cmd/agent/subcommands/integrations TestShowCommand (0.00s)
+Error: unknown command "show" for "test"
+Run 'test --help' for usage.
+    test.go:109: 
+        	Error Trace:	C:\dev\go\src\github.com\DataDog\datadog-agent\cmd\agent\subcommands\integrations\test.go:109
+        	Error:      	Should be true
+        	Test:       	TestShowCommand
+        	Messages:   	fxutil.OneShot wasn't called
+
+-- wait for all binaries to be converted --
+
+* move "coreagent" into a module
+    * clean up external use of run.Start/StopAgent
