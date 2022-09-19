@@ -40,23 +40,33 @@ func TestDentryResolutionERPC(t *testing.T) {
 	}
 	defer test.Close()
 
+	var testFile string
+	defer os.Remove(testFile)
+
 	test.WaitSignal(t, func() error {
-		testFile, _, err := test.Create(basename)
-		if err != nil {
-			return err
-		}
-		return os.Remove(testFile)
+		_, _, err = test.Create(basename)
+		return err
 	}, func(event *sprobe.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_erpc_rule")
+
+		test.probe.SendStats()
+
+		key := metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
+		assert.NotEmpty(t, test.statsdClient.Counts[key])
+
+		key = metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
+		assert.Empty(t, test.statsdClient.Counts[key])
+
+		// Force an eRPC resolution to refresh the entry with the last generation as lost events may have invalidated the entry
+		res, err := test.probe.GetResolvers().DentryResolver.ResolveFromERPC(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID, true)
+		assert.Nil(t, err)
+		assert.Equal(t, basename, path.Base(res))
+
+		// check that the path is now available from the cache
+		res, err = test.probe.GetResolvers().DentryResolver.ResolveFromCache(event.Open.File.MountID, event.Open.File.Inode)
+		assert.Nil(t, err)
+		assert.Equal(t, basename, path.Base(res))
 	})
-
-	test.probe.SendStats()
-
-	key := metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
-	assert.NotEmpty(t, test.statsdClient.Counts[key])
-
-	key = metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
-	assert.Empty(t, test.statsdClient.Counts[key])
 }
 
 func TestDentryResolutionMap(t *testing.T) {
@@ -84,15 +94,25 @@ func TestDentryResolutionMap(t *testing.T) {
 		return os.Remove(testFile)
 	}, func(event *sprobe.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_map_rule")
+
+		test.probe.SendStats()
+
+		key := metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
+		assert.NotEmpty(t, test.statsdClient.Counts[key])
+
+		key = metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
+		assert.Empty(t, test.statsdClient.Counts[key])
+
+		// Force an eRPC resolution to refresh the entry with the last generation as lost events may have invalidated the entry
+		res, err := test.probe.GetResolvers().DentryResolver.ResolveFromMap(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID, true)
+		assert.Nil(t, err)
+		assert.Equal(t, basename, path.Base(res))
+
+		// check that the path is now available from the cache
+		res, err = test.probe.GetResolvers().DentryResolver.ResolveFromCache(event.Open.File.MountID, event.Open.File.Inode)
+		assert.Nil(t, err)
+		assert.Equal(t, basename, path.Base(res))
 	})
-
-	test.probe.SendStats()
-
-	key := metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
-	assert.NotEmpty(t, test.statsdClient.Counts[key])
-
-	key = metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
-	assert.Empty(t, test.statsdClient.Counts[key])
 }
 
 func BenchmarkERPCDentryResolutionSegment(b *testing.B) {

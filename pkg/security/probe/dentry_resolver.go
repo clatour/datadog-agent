@@ -294,11 +294,8 @@ func (dr *DentryResolver) cacheInode(key PathKey, path *PathEntry) error {
 			return err
 		}
 		dr.cache[key.MountID] = entries
-		path.Generation = 0
-	} else {
-		// lookup mount_id generation
-		path.Generation = dr.cacheGeneration.Load()
 	}
+	path.Generation = dr.cacheGeneration.Load()
 
 	// release before in case of override
 	if prev, exists := entries.Get(key.Inode); exists {
@@ -339,7 +336,7 @@ func (dr *DentryResolver) getPathEntryFromPool(parent PathKey, name string) *Pat
 	entry := dr.pathEntryPool.Get().(*PathEntry)
 	entry.Parent = parent
 	entry.Name = name
-	entry.Generation = 0
+	entry.Generation = dr.cacheGeneration.Load()
 
 	return entry
 }
