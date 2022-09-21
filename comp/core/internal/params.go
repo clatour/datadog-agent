@@ -162,3 +162,10 @@ func (params BundleParams) LogForDaemon(loggerName, logFileConfig, defaultLogFil
 	}
 	return params
 }
+
+// LogToFile modifies the parameters to set the destination log file, overriding any
+// previous logfile parameter.
+func (params BundleParams) LogToFile(logFile string) BundleParams {
+	params.LogFileFn = func(configGetter) string { return logFile }
+	return params
+}

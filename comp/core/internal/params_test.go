@@ -183,3 +183,10 @@ func TestLogForDaemon_linux(t *testing.T) {
 		require.Equal(t, true, params.LogFormatJSONFn(g))
 	})
 }
+
+func TestLogToFile(t *testing.T) {
+	params := BundleParams{}.LogForOneShot("TEST", "trace", true).LogToFile("/some/file")
+	g := &getter{}
+
+	require.Equal(t, "/some/file", params.LogFileFn(g))
+}
