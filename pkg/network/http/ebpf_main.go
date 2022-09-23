@@ -106,7 +106,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					EBPFFuncName: "kprobe__tcp_sendmsg",
 					UID:          probeUID,
 				},
-				KProbeMaxActive: maxActive,
+				KProbeMaxActive:    maxActive,
+				KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -114,6 +115,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					EBPFFuncName: "tracepoint__net__netif_receive_skb",
 					UID:          probeUID,
 				},
+				KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -121,6 +123,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					EBPFFuncName: "socket__http_filter_entry",
 					UID:          probeUID,
 				},
+				KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents,
 			},
 		},
 	}

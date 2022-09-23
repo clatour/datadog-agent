@@ -378,6 +378,7 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 					EBPFFuncName: "kprobe___nf_conntrack_hash_insert",
 					UID:          "conntracker",
 				},
+				KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -385,6 +386,7 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 					EBPFFuncName: "kprobe_ctnetlink_fill_info",
 					UID:          "conntracker",
 				},
+				KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents,
 			},
 		},
 	}
