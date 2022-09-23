@@ -119,6 +119,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ConfigLoadSecrets: true,
 			}.LogForDaemon("CORE", "log_file", common.DefaultLogFile)),
 			core.Bundle,
+			jmxOptions(), // options differ depending on whether JMX is enabled
 		)
 	}
 
@@ -239,21 +240,7 @@ func StartAgentWithDefaults() error {
 		return loggerSetupErr
 	}
 
-	return startAgent(&cliParams{})
-}
-
-// startAgent Initializes the agent process
-func startAgent(cliParams *cliParams) error {
-	// NOTE: config may (temporarily) be nil if called from StartAgentWithDefaults!
-	var (
-		err            error
-		loggerSetupErr error
-	)
-
-	// Main context passed to components
-	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
-
-	// Setup logger
+	// Setup JMX logger
 	if runtime.GOOS != "android" {
 		syslogURI := pkgconfig.GetSyslogURI()
 		jmxLogFile := pkgconfig.Datadog.GetString("jmx_log_file")
@@ -284,6 +271,23 @@ func startAgent(cliParams *cliParams) error {
 			false, // not in json
 		)
 	}
+	if loggerSetupErr != nil {
+		return loggerSetupErr
+	}
+
+	return startAgent(&cliParams{})
+}
+
+// startAgent Initializes the agent process
+func startAgent(cliParams *cliParams) error {
+	// NOTE: config may (temporarily) be nil if called from StartAgentWithDefaults!
+	var (
+		err            error
+		loggerSetupErr error
+	)
+
+	// Main context passed to components
+	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 	if loggerSetupErr != nil {
 		return fmt.Errorf("Error while setting up logging, exiting: %v", loggerSetupErr)
