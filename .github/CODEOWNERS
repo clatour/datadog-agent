@@ -100,6 +100,8 @@
 /cmd/agent/subcommands/integrations     @DataDog/software-integrity-and-trust @DataDog/agent-integrations @DataDog/agent-shared-components
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
 /cmd/agent/subcommands/snmp             @DataDog/infrastructure-integrations
+/cmd/agent/subcommands/taggerlist       @DataDog/container-integrations
+/cmd/agent/subcommands/workloadlist     @DataDog/container-integrations
 /cmd/agent/subcommands/dogstatsd*       @DataDog/agent-metrics-logs
 /cmd/agent/subcommands/streamlogs       @DataDog/agent-metrics-logs
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
