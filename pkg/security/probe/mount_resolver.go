@@ -18,19 +18,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/moby/sys/mountinfo"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 var (
 	// ErrMountNotFound is used when an unknown mount identifier is found
 	ErrMountNotFound = errors.New("unknown mount ID")
+	// ErrMountUndefined is used when a mount identifier is undefined
+	ErrMountUndefined = errors.New("undefined mountID")
 )
 
 const (
@@ -80,21 +84,27 @@ type deleteRequest struct {
 
 // MountResolver represents a cache for mountpoints and the corresponding file systems
 type MountResolver struct {
-	probe            *Probe
+	statsdClient     statsd.ClientInterface
 	lock             sync.RWMutex
 	mounts           map[uint32]*model.MountEvent
 	devices          map[uint32]map[uint32]*model.MountEvent
 	deleteQueue      []deleteRequest
 	overlayPathCache *simplelru.LRU
 	parentPathCache  *simplelru.LRU
+
+	// stats
+	cacheHitsStats *atomic.Int64
+	cacheMissStats *atomic.Int64
+	procHitsStats  *atomic.Int64
+	procMissStats  *atomic.Int64
 }
 
 // SyncCache - Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
-func (mr *MountResolver) SyncCache(proc *process.Process) error {
+func (mr *MountResolver) SyncCache(pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mnts, err := kernel.ParseMountInfoFile(proc.Pid)
+	mnts, err := kernel.ParseMountInfoFile(int32(pid))
 	if err != nil {
 		pErr, ok := err.(*os.PathError)
 		if !ok {
@@ -104,14 +114,15 @@ func (mr *MountResolver) SyncCache(proc *process.Process) error {
 	}
 
 	for _, mnt := range mnts {
+		if _, exists := mr.mounts[uint32(mnt.ID)]; exists {
+			continue
+		}
+
 		e, err := newMountEventFromMountInfo(mnt)
 		if err != nil {
 			return err
 		}
 
-		if _, exists := mr.mounts[e.MountID]; exists {
-			continue
-		}
 		mr.insert(*e)
 	}
 
@@ -172,37 +183,19 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 }
 
 // GetFilesystem returns the name of the filesystem
-func (mr *MountResolver) GetFilesystem(mountID uint32) string {
-	mr.lock.RLock()
-	defer mr.lock.RUnlock()
-
-	mount, exists := mr.mounts[mountID]
-	if !exists {
+func (mr *MountResolver) GetFilesystem(mountID, pid uint32) string {
+	mount, err := mr.resolveMount(mountID, pid)
+	if err != nil {
 		return ""
 	}
 
 	return mount.GetFSType()
 }
 
-// IsOverlayFS returns the type of a mountID
-func (mr *MountResolver) IsOverlayFS(mountID uint32) bool {
-	mr.lock.RLock()
-	defer mr.lock.RUnlock()
-
-	mount, exists := mr.mounts[mountID]
-	if !exists {
-		return false
-	}
-
-	return mount.IsOverlayFS()
-}
-
 // Get returns a mount event from the mount id
-func (mr *MountResolver) Get(mountID uint32) *model.MountEvent {
-	mr.lock.RLock()
-	defer mr.lock.RUnlock()
-
-	return mr.mounts[mountID]
+func (mr *MountResolver) Get(mountID, pid uint32) *model.MountEvent {
+	mount, _ := mr.resolveMount(mountID, pid)
+	return mount
 }
 
 // Insert a new mount point in the cache
@@ -380,17 +373,45 @@ func (mr *MountResolver) Start(ctx context.Context) {
 	}()
 }
 
+func (mr *MountResolver) resolveMount(mountID, pid uint32) (*model.MountEvent, error) {
+	if mountID == 0 {
+		return nil, ErrMountUndefined
+	}
+
+	mr.lock.RLock()
+	mount, ok := mr.mounts[mountID]
+	mr.lock.RUnlock()
+
+	if !ok {
+		mr.cacheMissStats.Inc()
+		if pid != 0 {
+			if err := mr.SyncCache(pid); err != nil {
+				return nil, err
+			}
+			mount = mr.mounts[mountID]
+			if mount != nil {
+				mr.procHitsStats.Inc()
+			} else {
+				mr.procMissStats.Inc()
+			}
+		}
+	} else {
+		// stats
+		mr.cacheHitsStats.Inc()
+	}
+
+	if mount == nil {
+		return nil, ErrMountNotFound
+	}
+
+	return mount, nil
+}
+
 // GetMountPath returns the path of a mount identified by its mount ID. The first path is the container mount path if
 // it exists, the second parameter is the mount point path, and the third parameter is the root path.
-func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, error) {
-	if mountID == 0 {
-		return "", "", "", nil
-	}
-	mr.lock.RLock()
-	defer mr.lock.RUnlock()
-
-	mount, ok := mr.mounts[mountID]
-	if !ok {
+func (mr *MountResolver) GetMountPath(mountID, pid uint32) (string, string, string, error) {
+	mount, err := mr.resolveMount(mountID, pid)
+	if err != nil {
 		return "", "", "", nil
 	}
 
@@ -470,8 +491,32 @@ func getVFSRenameInputType(probe *Probe) uint64 {
 	return inputType
 }
 
+// SendStats sends metrics about the current state of the namespace resolver
+func (mr *MountResolver) SendStats() error {
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	if err := mr.statsdClient.Count(metrics.MetricMountResolverHits, mr.cacheHitsStats.Swap(0), []string{metrics.CacheTag}, 1.0); err != nil {
+		return err
+	}
+
+	if err := mr.statsdClient.Count(metrics.MetricMountResolverMiss, mr.cacheMissStats.Swap(0), []string{metrics.CacheTag}, 1.0); err != nil {
+		return err
+	}
+
+	if err := mr.statsdClient.Count(metrics.MetricMountResolverHits, mr.procHitsStats.Swap(0), []string{metrics.ProcFSTag}, 1.0); err != nil {
+		return err
+	}
+
+	if err := mr.statsdClient.Count(metrics.MetricMountResolverMiss, mr.procMissStats.Swap(0), []string{metrics.ProcFSTag}, 1.0); err != nil {
+		return err
+	}
+
+	return mr.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, float64(len(mr.mounts)), []string{}, 1.0)
+}
+
 // NewMountResolver instantiates a new mount resolver
-func NewMountResolver(probe *Probe) (*MountResolver, error) {
+func NewMountResolver(statsdClient statsd.ClientInterface) (*MountResolver, error) {
 	overlayPathCache, err := simplelru.NewLRU(256, nil)
 	if err != nil {
 		return nil, err
@@ -483,11 +528,15 @@ func NewMountResolver(probe *Probe) (*MountResolver, error) {
 	}
 
 	return &MountResolver{
-		probe:            probe,
+		statsdClient:     statsdClient,
 		lock:             sync.RWMutex{},
 		devices:          make(map[uint32]map[uint32]*model.MountEvent),
 		mounts:           make(map[uint32]*model.MountEvent),
 		overlayPathCache: overlayPathCache,
 		parentPathCache:  parentPathCache,
+		cacheHitsStats:   atomic.NewInt64(0),
+		procHitsStats:    atomic.NewInt64(0),
+		cacheMissStats:   atomic.NewInt64(0),
+		procMissStats:    atomic.NewInt64(0),
 	}, nil
 }
