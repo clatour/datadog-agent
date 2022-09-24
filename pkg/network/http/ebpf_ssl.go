@@ -35,6 +35,10 @@ var openSSLProbes = map[string]string{
 	"uretprobe/SSL_read":         "uretprobe__SSL_read",
 	"uprobe/SSL_write":           "uprobe__SSL_write",
 	"uretprobe/SSL_write":        "uretprobe__SSL_write",
+	"uprobe/SSL_read_ex":         "uprobe__SSL_read_ex",
+	"uretprobe/SSL_read_ex":      "uretprobe__SSL_read_ex",
+	"uprobe/SSL_write_ex":        "uprobe__SSL_write_ex",
+	"uretprobe/SSL_write_ex":     "uretprobe__SSL_write_ex",
 	"uprobe/SSL_shutdown":        "uprobe__SSL_shutdown",
 }
 
@@ -175,16 +179,16 @@ func (o *sslProgram) Start() {
 			registerCB:   addHooks(o.manager, openSSLProbes),
 			unregisterCB: removeHooks(o.manager, openSSLProbes),
 		},
-		soRule{
-			re:           regexp.MustCompile(`libcrypto.so`),
-			registerCB:   addHooks(o.manager, cryptoProbes),
-			unregisterCB: removeHooks(o.manager, cryptoProbes),
-		},
-		soRule{
-			re:           regexp.MustCompile(`libgnutls.so`),
-			registerCB:   addHooks(o.manager, gnuTLSProbes),
-			unregisterCB: removeHooks(o.manager, gnuTLSProbes),
-		},
+		//soRule{
+		//	re:           regexp.MustCompile(`libcrypto.so`),
+		//	registerCB:   addHooks(o.manager, cryptoProbes),
+		//	unregisterCB: removeHooks(o.manager, cryptoProbes),
+		//},
+		//soRule{
+		//	re:           regexp.MustCompile(`libgnutls.so`),
+		//	registerCB:   addHooks(o.manager, gnuTLSProbes),
+		//	unregisterCB: removeHooks(o.manager, gnuTLSProbes),
+		//},
 	)
 
 	o.watcher.Start()
@@ -199,6 +203,7 @@ func (o *sslProgram) Stop() {
 }
 
 func addHooks(m *manager.Manager, probes map[string]string) func(string) error {
+	manager.ProbeSelector{}
 	return func(libPath string) error {
 		uid := getUID(libPath)
 		for sec, funcName := range probes {
