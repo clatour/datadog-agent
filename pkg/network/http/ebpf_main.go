@@ -34,7 +34,7 @@ const (
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to inspect plain HTTP traffic
-	httpSocketFilterStub = "socket/http_filter_entry"
+	httpSocketFilterStub = "socket/protocol_dispatcher"
 	httpSocketFilter     = "socket/http_filter"
 	httpProgsMap         = "http_progs"
 
@@ -74,6 +74,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		return nil, err
 	}
 
+	// TODO: guy
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
@@ -118,7 +119,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  httpSocketFilterStub,
-					EBPFFuncName: "socket__http_filter_entry",
+					EBPFFuncName: "socket__protocol_dispatcher",
 					UID:          probeUID,
 				},
 			},
@@ -182,7 +183,7 @@ func (e *ebpfProgram) Init() error {
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  httpSocketFilterStub,
-					EBPFFuncName: "socket__http_filter_entry",
+					EBPFFuncName: "socket__protocol_dispatcher",
 					UID:          probeUID,
 				},
 			},

@@ -13,6 +13,93 @@
 #include "conn-tuple.h"
 
 #define SO_SUFFIX_SIZE 3
+#define HTTP2_MARKER_SIZE 24
+
+static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
+    if (buf_size < HTTP2_MARKER_SIZE) {
+        return false;
+    }
+
+    if (buf == NULL) {
+        return false;
+    }
+
+    uint8_t http2_prefix[] = {0x50, 0x52, 0x49, 0x20, 0x2a, 0x20, 0x48, 0x54, 0x54, 0x50, 0x2f, 0x32, 0x2e, 0x30, 0x0d, 0x0a, 0x0d, 0x0a, 0x53, 0x4d, 0x0d, 0x0a, 0x0d, 0x0a};
+    for (int i = 0; i < HTTP2_MARKER_SIZE; i++) {
+        if (buf[i] != http2_prefix[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static __always_inline bool is_http(const char *buf, __u32 size) {
+    if ((buf[0] == 'H') && (buf[1] == 'T') && (buf[2] == 'T') && (buf[3] == 'P')) {
+        return true;
+    } else if ((buf[0] == 'G') && (buf[1] == 'E') && (buf[2] == 'T') && (buf[3]  == ' ') && (buf[4] == '/')) {
+        return true;
+    } else if ((buf[0] == 'P') && (buf[1] == 'O') && (buf[2] == 'S') && (buf[3] == 'T') && (buf[4]  == ' ') && (buf[5] == '/')) {
+        return true;
+    } else if ((buf[0] == 'P') && (buf[1] == 'U') && (buf[2] == 'T') && (buf[3]  == ' ') && (buf[4] == '/')) {
+        return true;
+    } else if ((buf[0] == 'D') && (buf[1] == 'E') && (buf[2] == 'L') && (buf[3] == 'E') && (buf[4] == 'T') && (buf[5] == 'E') && (buf[6]  == ' ') && (buf[7] == '/')) {
+        return true;
+    } else if ((buf[0] == 'H') && (buf[1] == 'E') && (buf[2] == 'A') && (buf[3] == 'D') && (buf[4]  == ' ') && (buf[5] == '/')) {
+        return true;
+    } else if ((buf[0] == 'O') && (buf[1] == 'P') && (buf[2] == 'T') && (buf[3] == 'I') && (buf[4] == 'O') && (buf[5] == 'N') && (buf[6] == 'S') && (buf[7]  == ' ') && ((buf[8] == '/') || (buf[8] == '*'))) {
+        return true;
+    } else if ((buf[0] == 'P') && (buf[1] == 'A') && (buf[2] == 'T') && (buf[3] == 'C') && (buf[4] == 'H') && (buf[5]  == ' ') && (buf[6] == '/')) {
+        return true;
+    }
+
+    return false;
+}
+
+SEC("socket/protocol_dispatcher")
+int socket__protocol_dispatcher(struct __sk_buff *skb) {
+    skb_info_t skb_info = {0};
+    conn_tuple_t tup = {0};
+
+    if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
+        log_debug("[protocol dispatcher]1: Failed reading conn tuple skb\n");
+        return 0;
+    }
+
+    // we're only interested in TCP traffic
+    if (!(tup.metadata&CONN_TYPE_TCP)) {
+        log_debug("[protocol dispatcher]: Connection is not TCP\n");
+        return 0;
+    }
+
+    // if payload data is empty we only
+    // process it if the packet represents a TCP termination
+    // TODO: guy, improve the following condition. If the payload is not empty, yet we should not parse it (encrypted, unidentified protocol) if that's TCP termination
+    bool empty_payload = skb_info.data_off == skb->len;
+    if (empty_payload && !(skb_info.tcp_flags&(TCPHDR_FIN|TCPHDR_RST))) {
+        log_debug("[protocol dispatcher]: Payload is not TCP\n");
+        return 0;
+    }
+
+    //    // src_port represents the source port number *before* normalization
+    //    // for more context please refer to http-types.h comment on `owned_by_src_port` field
+    //    http.owned_by_src_port = http.tup.sport;
+    normalize_tuple(&tup);
+
+    http_transaction_t http;
+    __builtin_memset(&http, 0, sizeof(http));
+    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
+
+    if (is_http(http.request_fragment, HTTP_BUFFER_SIZE)) {
+        log_debug("[protocol dispatcher]: HTTP payload identified: %s\n", http.request_fragment);
+        tup.protocol = PROTOCOL_HTTP;
+    } else if (is_http2(http.request_fragment, HTTP_BUFFER_SIZE)) {
+        log_debug("[protocol dispatcher]: HTTP/2 payload identified: %s\n", http.request_fragment);
+        tup.protocol = PROTOCOL_HTTP2;
+    }
+
+    return 0;
+}
 
 // This entry point is needed to bypass a memory limit on socket filters
 // See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues

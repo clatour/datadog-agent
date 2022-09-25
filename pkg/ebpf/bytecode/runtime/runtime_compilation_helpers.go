@@ -178,7 +178,7 @@ func (rc *Compiler) CompileObjectFile(config *ebpf.Config, cflags []string, inpu
 			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", inputFileName, err)
 		}
 		rc.telemetry.compilationResult = compilationSuccess
-		log.Infof("successfully compiled runtime version of %s", inputFileName)
+		log.Infof("successfully compiled runtime version of %s -> %s", inputFileName, outputFile)
 	} else {
 		rc.telemetry.compilationResult = compiledOutputFound
 	}

@@ -21,6 +21,12 @@ typedef enum
     PACKET_COUNT_INCREMENT = 2,
 } packet_count_increment_t;
 
+typedef enum {
+    PROTOCOL_UNKNOWN = 0,
+    PROTOCOL_HTTP = 1,
+    PROTOCOL_HTTP2 = 2,
+} protocol_t;
+
 #define CONN_DIRECTION_MASK 0b11
 
 typedef struct {
@@ -68,7 +74,7 @@ typedef struct {
     // Metadata description:
     // First bit indicates if the connection is TCP (1) or UDP (0)
     // Second bit indicates if the connection is V6 (1) or V4 (0)
-    __u32 metadata; // This is that big because it seems that we atleast need a 32-bit aligned struct
+    __u32 metadata; // This is that big because it seems that we at least need a 32-bit aligned struct
 } conn_tuple_t;
 
 typedef struct {
