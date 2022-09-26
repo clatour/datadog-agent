@@ -119,14 +119,6 @@ type pidDiscarders struct {
 	erpc *ERPC
 }
 
-func (p *pidDiscarders) discardPid(req *ERPCRequest, eventType model.EventType, pid uint32) error {
-	req.OP = DiscardPidOp
-	offset := marshalDiscardHeader(req, eventType, 0)
-	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
-
-	return p.erpc.Request(req)
-}
-
 func (p *pidDiscarders) discardWithTimeout(req *ERPCRequest, eventType model.EventType, pid uint32, timeout int64) error {
 	req.OP = DiscardPidOp
 	offset := marshalDiscardHeader(req, eventType, uint64(timeout))
