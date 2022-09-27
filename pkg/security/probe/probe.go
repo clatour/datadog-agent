@@ -768,7 +768,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode veth_pair event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
+		_ = p.setupNewTCClassifier(event.VethPair.HostDevice)
 	case model.DNSEventType:
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
