@@ -724,7 +724,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := NewTracer(cfg)
+	tr, err := NewIdleTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	defer tr.Stop()
@@ -782,6 +782,9 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 		return network.Subnet{Alias: "subnet"}, nil
 	}
 	tr.gwLookup.purge()
+
+	err = tr.Start()
+	require.NoError(t, err)
 
 	test1Ns, err := vnetns.GetFromName("test1")
 	require.NoError(t, err)
