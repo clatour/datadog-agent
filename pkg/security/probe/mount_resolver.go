@@ -104,6 +104,10 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
+	return mr.syncCache(pid)
+}
+
+func (mr *MountResolver) syncCache(pid uint32) error {
 	mnts, err := kernel.ParseMountInfoFile(int32(pid))
 	if err != nil {
 		pErr, ok := err.(*os.PathError)
@@ -184,6 +188,9 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 
 // GetFilesystem returns the name of the filesystem
 func (mr *MountResolver) GetFilesystem(mountID, pid uint32) string {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+
 	mount, err := mr.resolveMount(mountID, pid)
 	if err != nil {
 		return ""
@@ -194,6 +201,9 @@ func (mr *MountResolver) GetFilesystem(mountID, pid uint32) string {
 
 // Get returns a mount event from the mount id
 func (mr *MountResolver) Get(mountID, pid uint32) *model.MountEvent {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+
 	mount, _ := mr.resolveMount(mountID, pid)
 	return mount
 }
@@ -378,14 +388,12 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32) (*model.MountEvent, e
 		return nil, ErrMountUndefined
 	}
 
-	mr.lock.RLock()
 	mount, ok := mr.mounts[mountID]
-	mr.lock.RUnlock()
 
 	if !ok {
 		mr.cacheMissStats.Inc()
 		if pid != 0 {
-			if err := mr.SyncCache(pid); err != nil {
+			if err := mr.syncCache(pid); err != nil {
 				return nil, err
 			}
 			mount = mr.mounts[mountID]
@@ -410,6 +418,9 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32) (*model.MountEvent, e
 // GetMountPath returns the path of a mount identified by its mount ID. The first path is the container mount path if
 // it exists, the second parameter is the mount point path, and the third parameter is the root path.
 func (mr *MountResolver) GetMountPath(mountID, pid uint32) (string, string, string, error) {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+
 	mount, err := mr.resolveMount(mountID, pid)
 	if err != nil {
 		return "", "", "", nil
