@@ -130,14 +130,14 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 	defer tcpCloser.Close()
 
 	t.Log("root netns")
-	out := nettestutil.RunCommands(t, []string{"iptables -L"}, true)
+	out := nettestutil.RunCommands(t, []string{"iptables -L -t nat"}, true)
 	for _, o := range out {
 		t.Log(o)
 	}
 
 	_ = util.WithNS("/proc", testNs, func() error {
 		t.Log("test netns")
-		out := nettestutil.RunCommands(t, []string{"iptables -L"}, true)
+		out := nettestutil.RunCommands(t, []string{"iptables -L -t nat"}, true)
 		for _, o := range out {
 			t.Log(o)
 		}
