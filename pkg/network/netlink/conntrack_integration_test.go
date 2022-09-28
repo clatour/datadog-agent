@@ -99,11 +99,12 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 	destIP := "10.10.1.1"
 	destPort := 80
 	listenIP := "2.2.2.4"
+	redirPort := 80
 	listenPort := 8080
 
 	t.Cleanup(func() {
 		nettestutil.RunCommands(t, []string{
-			fmt.Sprintf("iptables --table nat --delete CLUSTERIPS --destination %s --protocol tcp --match tcp --dport %d --jump DNAT --to-destination %s:%d", destIP, destPort, listenIP, listenPort),
+			fmt.Sprintf("iptables --table nat --delete CLUSTERIPS --destination %s --protocol tcp --match tcp --dport %d --jump DNAT --to-destination %s:%d", destIP, destPort, listenIP, redirPort),
 			"iptables --table nat --delete PREROUTING --jump CLUSTERIPS",
 			"iptables --table nat --delete OUTPUT --jump CLUSTERIPS",
 			"iptables --table nat --delete-chain CLUSTERIPS",
@@ -113,7 +114,7 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 		"iptables --table nat --new-chain CLUSTERIPS",
 		"iptables --table nat --append PREROUTING --jump CLUSTERIPS",
 		"iptables --table nat --append OUTPUT --jump CLUSTERIPS",
-		fmt.Sprintf("iptables --table nat --append CLUSTERIPS --destination %s --protocol tcp --match tcp --dport %d --jump DNAT --to-destination %s:%d", destIP, destPort, listenIP, listenPort),
+		fmt.Sprintf("iptables --table nat --append CLUSTERIPS --destination %s --protocol tcp --match tcp --dport %d --jump DNAT --to-destination %s:%d", destIP, destPort, listenIP, redirPort),
 	}, false)
 
 	testNs, err := netns.GetFromName(ns)
@@ -126,6 +127,12 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 
 	tcpCloser := nettestutil.StartServerTCPNs(t, net.ParseIP(listenIP), listenPort, ns)
 	defer tcpCloser.Close()
+
+	t.Log("root routes")
+	out := nettestutil.RunCommands(t, []string{"ip route show"}, true)
+	for _, o := range out {
+		t.Log(o)
+	}
 
 	t.Log("root netns")
 	out := nettestutil.RunCommands(t, []string{"iptables -L -t nat"}, true)
