@@ -118,6 +118,11 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 	if sysOpenAt2Supported(o.cfg) {
 		probeSysOpen = doSysOpenAt2
 	}
+
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if o.cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
 	for _, kprobe := range kprobeKretprobePrefix {
 		m.Probes = append(m.Probes,
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -126,7 +131,7 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 				UID:          probeUID,
 			},
 				KProbeMaxActive:    maxActive,
-				KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents,
+				KprobeAttachMethod: kprobeAttachMethod,
 			},
 		)
 	}

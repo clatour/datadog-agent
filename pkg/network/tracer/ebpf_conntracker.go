@@ -84,7 +84,7 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 		return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
 	}
 
-	m, err := getManager(buf, cfg.ConntrackMaxStateSize)
+	m, err := getManager(cfg, buf)
 	if err != nil {
 		return nil, err
 	}
@@ -364,7 +364,12 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 	return entries, nil
 }
 
-func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
+func getManager(cfg *config.Config, buf io.ReaderAt) (*manager.Manager, error) {
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
+
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConntrackMap)},
@@ -378,7 +383,7 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 					EBPFFuncName: "kprobe___nf_conntrack_hash_insert",
 					UID:          "conntracker",
 				},
-				KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents,
+				KprobeAttachMethod: kprobeAttachMethod,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -386,7 +391,7 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 					EBPFFuncName: "kprobe_ctnetlink_fill_info",
 					UID:          "conntracker",
 				},
-				KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents,
+				KprobeAttachMethod: kprobeAttachMethod,
 			},
 		},
 	}
@@ -403,7 +408,7 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			string(probes.ConntrackMap): {Type: ebpf.Hash, MaxEntries: uint32(maxStateSize), EditorFlag: manager.EditMaxEntries},
+			string(probes.ConntrackMap): {Type: ebpf.Hash, MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries},
 		},
 	}
 

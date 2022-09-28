@@ -127,7 +127,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := newManager(perfHandlerTCP, runtimeTracer)
+	m := newManager(config, perfHandlerTCP, runtimeTracer)
 	m.DumpHandler = dumpMapsHandler
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
