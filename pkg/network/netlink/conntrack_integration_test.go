@@ -10,6 +10,7 @@ package netlink
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
 	"testing"
 	"time"
@@ -95,16 +96,15 @@ func TestConntrackExists6(t *testing.T) {
 }
 
 func TestConntrackExistsRootDNAT(t *testing.T) {
-	ns := testutil.SetupCrossNsDNAT(t)
 	destIP := "10.10.1.1"
-	destPort := 80
+	destPort := rand.Intn(100) + 10000
 	listenIP := "2.2.2.4"
-	redirPort := 80
-	listenPort := 8080
+	listenPort := rand.Intn(100) + 20000
+	ns := testutil.SetupCrossNsDNATWithPorts(t, destPort, listenPort)
 
 	t.Cleanup(func() {
 		nettestutil.RunCommands(t, []string{
-			fmt.Sprintf("iptables --table nat --delete CLUSTERIPS --destination %s --protocol tcp --match tcp --dport %d --jump DNAT --to-destination %s:%d", destIP, destPort, listenIP, redirPort),
+			fmt.Sprintf("iptables --table nat --delete CLUSTERIPS --destination %s --protocol tcp --match tcp --dport %d --jump DNAT --to-destination %s:%d", destIP, destPort, listenIP, destPort),
 			"iptables --table nat --delete PREROUTING --jump CLUSTERIPS",
 			"iptables --table nat --delete OUTPUT --jump CLUSTERIPS",
 			"iptables --table nat --delete-chain CLUSTERIPS",
@@ -114,7 +114,7 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 		"iptables --table nat --new-chain CLUSTERIPS",
 		"iptables --table nat --append PREROUTING --jump CLUSTERIPS",
 		"iptables --table nat --append OUTPUT --jump CLUSTERIPS",
-		fmt.Sprintf("iptables --table nat --append CLUSTERIPS --destination %s --protocol tcp --match tcp --dport %d --jump DNAT --to-destination %s:%d", destIP, destPort, listenIP, redirPort),
+		fmt.Sprintf("iptables --table nat --append CLUSTERIPS --destination %s --protocol tcp --match tcp --dport %d --jump DNAT --to-destination %s:%d", destIP, destPort, listenIP, destPort),
 	}, false)
 
 	testNs, err := netns.GetFromName(ns)
