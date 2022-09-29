@@ -10,13 +10,19 @@ package http
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	nethttp "net/http"
 	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,12 +46,116 @@ var (
 	emptyBody = []byte(nil)
 )
 
+var (
+	disableTLSVerification = sync.Once{}
+)
+
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < MinimumKernelVersion {
 		t.Skip(fmt.Sprintf("HTTP feature not available on pre %s kernels", MinimumKernelVersion.String()))
 	}
+}
+
+func writeTempFile(pattern string, content string) (*os.File, error) {
+	f, err := ioutil.TempFile("", pattern)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	if _, err := f.WriteString(content); err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
+func rawConnect(ctx context.Context, t *testing.T, host string, port string) {
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatalf("failed connecting to port %s:%s", host, port)
+		default:
+			conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), time.Second)
+			if err != nil {
+				continue
+			}
+			if conn != nil {
+				conn.Close()
+				return
+			}
+		}
+	}
+
+}
+
+const pythonSSLServerFormat = `import http.server, ssl
+
+class RequestHandler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        status_code = int(self.path.split("/")[1])
+        self.send_response(status_code)
+        self.end_headers()
+        self.wfile.write(b'Hello, world!')
+
+server_address = ('127.0.0.1', 8001)
+httpd = http.server.HTTPServer(server_address, RequestHandler)
+httpd.socket = ssl.wrap_socket(httpd.socket,
+                               server_side=True,
+                               certfile='%s',
+                               keyfile='%s',
+                               ssl_version=ssl.PROTOCOL_TLS)
+httpd.serve_forever()
+`
+
+func TestOpenSSLVersions(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+
+	disableTLSVerification.Do(func() {
+		nethttp.DefaultTransport.(*nethttp.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	})
+	curDir, _ := testutil.CurDir()
+	crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
+	keyPath := filepath.Join(curDir, "testdata/server.key")
+	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, crtPath, keyPath)
+	scriptFile, err := writeTempFile("python_openssl_script", pythonSSLServer)
+	require.NoError(t, err)
+	defer scriptFile.Close()
+
+	cmd := exec.Command("python3", scriptFile.Name())
+	go func() {
+		err := cmd.Start()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
+	defer func() {
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+	}()
+
+	portCtx, cancelPortCtx := context.WithDeadline(context.Background(), time.Now().Add(time.Second*5))
+	rawConnect(portCtx, t, "127.0.0.1", "8001")
+	cancelPortCtx()
+
+	cfg := config.New()
+	cfg.EnableHTTPSMonitoring = true
+	tr, err := tracer.NewTracer(cfg)
+	require.NoError(t, err)
+	err = tr.RegisterClient("1")
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	requestFn := simpleGetRequestsGenerator(t, "127.0.0.1:8001")
+	var requests []*nethttp.Request
+	for i := 0; i < 100; i++ {
+		requests = append(requests, requestFn())
+	}
+
+	assertAllRequestsExists2(t, tr, requests)
 }
 
 // TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel
@@ -351,6 +461,25 @@ func TestRSTPacketRegression(t *testing.T) {
 	includesRequest(t, stats, &nethttp.Request{URL: url})
 }
 
+func assertAllRequestsExists2(t *testing.T, tracker *tracer.Tracer, requests []*nethttp.Request) {
+	requestsExist := make([]bool, len(requests))
+	for i := 0; i < 10; i++ {
+		time.Sleep(10 * time.Millisecond)
+		conns, err := tracker.GetActiveConnections("1")
+		require.NoError(t, err)
+
+		for reqIndex, req := range requests {
+			for _, httpStats := range conns.HTTP {
+				fmt.Println(httpStats, reqIndex, req)
+			}
+		}
+	}
+
+	for reqIndex, exists := range requestsExist {
+		require.Truef(t, exists, "request %d was not found (req %v)", reqIndex, requests[reqIndex])
+	}
+}
+
 func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp.Request) {
 	requestsExist := make([]bool, len(requests))
 	for i := 0; i < 10; i++ {
@@ -392,6 +521,25 @@ var (
 	httpMethodsWithBody = []string{nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete}
 	statusCodes         = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
 )
+
+func simpleGetRequestsGenerator(t *testing.T, targetAddr string) func() *nethttp.Request {
+	var (
+		random = rand.New(rand.NewSource(time.Now().Unix()))
+		idx    = 0
+		client = new(nethttp.Client)
+	)
+
+	return func() *nethttp.Request {
+		idx++
+		status := statusCodes[random.Intn(len(statusCodes))]
+		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", targetAddr, status, idx), nil)
+		require.NoError(t, err)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, status, resp.StatusCode)
+		return req
+	}
+}
 
 func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *nethttp.Request {
 	var (
